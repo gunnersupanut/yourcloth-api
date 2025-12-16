@@ -8,6 +8,7 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 5000;
+const nodeEnv = process.env.NODE_ENV
 
 // --Cors
 app.use(cors());
@@ -31,5 +32,15 @@ app.use("/api/v1/carts", cartsRouter)
 
 // สั่งให้ Server มันเริ่มฟัง
 app.listen(port, () => {
-  console.log(`[Server]Server รันอยู่บน http://localhost:${port}`);
+  console.log(`[Server] 🚀Server is running...`);
+  console.log(`env: ${nodeEnv}`);
+  console.log(`port: ${port}`);
+  if (nodeEnv === 'production') {
+    // ถ้าอยู่บน Cloud (Render)
+    console.log(`🔗 URL: https://yourcloth-api.onrender.com (หรือ URL จริงของคุณ)`);
+  } else {
+    // ถ้าอยู่บนเครื่องเรา (Localhost)
+    console.log(`🔗 URL: http://localhost:${port}`);
+  }
+  console.log(`=================================`);
 });
