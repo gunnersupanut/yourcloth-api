@@ -43,7 +43,7 @@ export const registerController = async (
             if (error.detail.includes('email')) {
                 return res.status(400).json({ error: 'Email already exists!' });
             }
-            return res.status(400).json({ error: 'ข้อมูลมึงซ้ำ! ไปเช็คมา!' });
+            return res.status(400).json({ error: 'Unique Violation' });
         }
 
         // ถ้ามัน Error อย่างอื่น
