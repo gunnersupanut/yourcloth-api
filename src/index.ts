@@ -37,7 +37,7 @@ app.listen(port, () => {
   console.log(`port: ${port}`);
   if (nodeEnv === 'production') {
     // ถ้าอยู่บน Cloud (Render)
-    console.log(`🔗 URL: https://yourcloth-api.onrender.com (หรือ URL จริงของคุณ)`);
+    console.log(`🔗 URL: https://yourcloth-api.onrender.com`);
   } else {
     // ถ้าอยู่บนเครื่องเรา (Localhost)
     console.log(`🔗 URL: http://localhost:${port}`);
