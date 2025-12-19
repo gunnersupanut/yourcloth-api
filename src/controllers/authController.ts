@@ -55,9 +55,10 @@ export const registerController = async (
 interface LoginRequestBody {
     username: string;
     password: string;
+    rememberMe: boolean;
 }
 export const loginController = async (req: Request<unknown, unknown, LoginRequestBody>, res: Response) => {
-    const { username, password } = req.body
+    const { username, password, rememberMe } = req.body
     if (!username || !password) {
         return res.status(400).json({ message: "Username And Password are required" });
     }
@@ -83,9 +84,10 @@ export const loginController = async (req: Request<unknown, unknown, LoginReques
         // หากรหัสผ่านถูกต้อง
         // สร้าง JWT token พร้อม id และ id_companies
         const token = jwt.sign(
-            { id: user.id },
+            { id: user.id, username: user.username },
+
             jwtSecret,
-            { expiresIn: "24h" }
+            { expiresIn: rememberMe ? '7d' : '1d' }
         );
         // ส่งข้อมูลกลับไปยัง user
         res.status(200).json({
