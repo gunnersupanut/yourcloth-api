@@ -65,7 +65,7 @@ export const loginController = async (req: Request<unknown, unknown, LoginReques
     try {
         // Sql
         const sql = `
-        SELECT id, password_hash, is_active
+        SELECT id, username, password_hash, is_active
         FROM users
         WHERE username = $1
         `;
@@ -85,7 +85,6 @@ export const loginController = async (req: Request<unknown, unknown, LoginReques
         // สร้าง JWT token พร้อม id และ id_companies
         const token = jwt.sign(
             { id: user.id, username: user.username },
-
             jwtSecret,
             { expiresIn: rememberMe ? '7d' : '1d' }
         );
