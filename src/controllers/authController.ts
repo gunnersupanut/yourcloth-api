@@ -163,11 +163,11 @@ export const verifyController = async (req: Request<unknown, unknown, unknown, V
             user: result.rows[0]
         });
     } catch (error) {
-        res.status(400).send("Invalid or Expired Token");
+        res.status(400).send({ message: "Invalid or Expired Token" });
     }
 
 }
 
-export const resentEmailController = async(req:Request,res:Response)=>{
+export const resentEmailController = async (req: Request, res: Response) => {
 
 };
