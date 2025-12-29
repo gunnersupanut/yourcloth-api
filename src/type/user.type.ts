@@ -13,7 +13,7 @@ export interface RegisterRequestBody {
 
 export interface resendEmailRequestBody {
     userId: number;
-    email: string
+    email: string;
 }
 
 export interface CreateUserParams {
