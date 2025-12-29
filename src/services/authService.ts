@@ -91,7 +91,7 @@ export const authService = {
                               </h1>
                               
                               <p style="color: #555555; font-size: 16px; line-height: 1.5; margin: 0 0 30px 0;">
-                                  Thanks for signing up for YourCloth! <br>
+                                  Thanks for signing up for YourCloth <br>
                                   Please click the button below to verify your email address and activate your account.
                               </p>
 
