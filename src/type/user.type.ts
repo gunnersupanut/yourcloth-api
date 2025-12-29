@@ -17,3 +17,9 @@ export interface CreateUserParams {
     verification_token: string;
     verification_expires_at: Date;
 }
+
+export interface updateTokenParams {
+    userId: number;
+    verification_token: string;
+    verification_expires_at: Date;
+}

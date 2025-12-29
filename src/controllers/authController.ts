@@ -21,11 +21,10 @@ export const registerController = async (
         password
     };
     try {
-        const result = await authService.register(registerPayload)
+        await authService.register(registerPayload)
 
         res.status(201).json({
             message: 'Register Complete.',
-            userId: result.id
         });
 
     } catch (error: any) { // ใส่ 'any' จะได้ .code ได้

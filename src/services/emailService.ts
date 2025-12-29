@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { getVerificationEmailHtml } from '../utils/emailTemplates';
 
 // สร้าง Transporter
 const transporter = nodemailer.createTransport({
@@ -25,3 +26,22 @@ export const sendEmail = async (to: string, subject: string, html: string) => {
         throw error;
     }
 }
+
+export const emailService = {
+    // ฟังก์ชันย่อยสำหรับส่ง Verify Email โดยเฉพาะ
+    sendVerificationEmail: async (email: string, token: string) => {
+        const link = `${process.env.CLIENT_URL}/verified?token=${token}`;
+        const subject = "Welcome To YourCloth Please Verify Email";
+
+        // เรียกเอา HTML มาจากไฟล์ Template
+        const htmlContent = getVerificationEmailHtml(link);
+
+        // เรียกฟังก์ชันส่ง
+        await sendEmail(email, subject, htmlContent);
+    },
+
+    // รอเพิ่ม
+    sendResetPasswordEmail: async (email: string, token: string) => {
+        // ... logic 
+    }
+};

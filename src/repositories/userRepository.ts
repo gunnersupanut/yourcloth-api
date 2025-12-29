@@ -1,6 +1,5 @@
-import { verify } from 'crypto';
 import pool from '../config/db';
-import { CreateUserParams, RegisterRequestBody } from '../type/user.type';
+import { CreateUserParams, updateTokenParams } from '../type/user.type';
 
 export const userRepository = {
     findByUsername: async (username: string) => {
@@ -42,7 +41,6 @@ export const userRepository = {
         const sql = `
             INSERT INTO users (username, password_hash, email, verification_token, verification_expires_at)
             VALUES ($1, $2, $3, $4, $5)
-            RETURNING id, username, email
         `;
 
         // เรียงตามลำดับ $1, $2...
@@ -53,9 +51,22 @@ export const userRepository = {
             data.verification_token,
             data.verification_expires_at
         ];
-
-        const result = await pool.query(sql, values);
-        return result.rows[0];
+        await pool.query(sql, values);
+    },
+    updateToken: async (data: updateTokenParams) => {
+        const sql = `
+           UPDATE users 
+        SET 
+            verification_token = $1,
+            verification_expires_at = $2
+        WHERE id = $3
+        `;
+        const values = [
+            data.verification_token,
+            data.verification_expires_at,
+            data.userId
+        ];
+        await pool.query(sql, values);
     },
     verifyUser: async (id: number) => {
         const sql = `UPDATE users
