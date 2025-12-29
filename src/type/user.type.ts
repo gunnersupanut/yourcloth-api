@@ -1,3 +1,4 @@
+// Req Body
 export interface LoginRequestBody {
     username: string;
     password: string;
@@ -8,6 +9,11 @@ export interface RegisterRequestBody {
     username: string;
     email: string;
     password: string;
+}
+
+export interface resendEmailRequestBody {
+    userId: number;
+    email: string
 }
 
 export interface CreateUserParams {
@@ -23,3 +29,4 @@ export interface updateTokenParams {
     verification_token: string;
     verification_expires_at: Date;
 }
+

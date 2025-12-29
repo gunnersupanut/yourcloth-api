@@ -1,9 +1,6 @@
 import { Request, Response } from 'express';
-
-
-import { LoginRequestBody, RegisterRequestBody } from '../type/user.type';
+import { LoginRequestBody, RegisterRequestBody, resendEmailRequestBody } from '../type/user.type';
 import { authService } from "../services/authService";
-const jwtSecret: string = process.env.JWT_SECRET as string
 
 // Email
 
@@ -79,7 +76,7 @@ export const verifyController = async (req: Request<unknown, unknown, unknown, V
     res: Response) => {
     // รับ Token จาก frontend
     const { token } = req.query;
-    if (!token) return res.status(400).send("No token provided");
+    if (!token) return res.status(400).json({ message: "No token provided" })
     // แกะ Token
     try {
         // เรียก Service
@@ -99,6 +96,14 @@ export const verifyController = async (req: Request<unknown, unknown, unknown, V
 
 }
 
-export const resentEmailController = async (req: Request, res: Response) => {
-
+export const resentEmailController = async (req: Request<unknown, unknown, resendEmailRequestBody>, res: Response) => {
+    const { userId, email } = req.body
+    if (!userId || !email) return res.status(400).send("Invalid data. Please try again.");
+    try {
+        await authService.resendEmail(userId, email);
+        return res.status(200).json({ message: "Verification email has been resent successfully." });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Could not send email. Please try again." });
+    }
 };
