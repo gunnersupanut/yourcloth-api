@@ -81,7 +81,7 @@ export const authService = {
         const updatedUser = await userRepository.verifyUser(user.id);
         return { status: "SUCCESS", user: updatedUser };
     },
-    resendEmail: async (userId: number, email: string) => {
+    resendEmail: async (email: string) => {
         // สร้างโทเคน
         const verificationToken = uuidv4();
         // สร้างเวลาหมดอายุ (ปัจจุบัน + 30 นาที)
@@ -89,7 +89,7 @@ export const authService = {
         expiresAt.setMinutes(expiresAt.getMinutes() + 30);
         // เตรียมข้อมูลส่งไป CreateUser Repository
         const updateTokenParams: updateTokenParams = {
-            userId,
+            email,
             verification_token: verificationToken,
             verification_expires_at: expiresAt
         }

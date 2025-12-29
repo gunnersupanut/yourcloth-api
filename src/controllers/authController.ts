@@ -97,10 +97,10 @@ export const verifyController = async (req: Request<unknown, unknown, unknown, V
 }
 
 export const resentEmailController = async (req: Request<unknown, unknown, resendEmailRequestBody>, res: Response) => {
-    const { userId, email } = req.body
-    if (!userId || !email) return res.status(400).send("Invalid data. Please try again.");
+    const { email } = req.body
+    if (!email) return res.status(400).send("Invalid data. Please try again.");
     try {
-        await authService.resendEmail(userId, email);
+        await authService.resendEmail(email);
         return res.status(200).json({ message: "Verification email has been resent successfully." });
     } catch (error) {
         console.error(error);

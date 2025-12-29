@@ -12,7 +12,6 @@ export interface RegisterRequestBody {
 }
 
 export interface resendEmailRequestBody {
-    userId: number;
     email: string;
 }
 
@@ -25,7 +24,7 @@ export interface CreateUserParams {
 }
 
 export interface updateTokenParams {
-    userId: number;
+    email: string;
     verification_token: string;
     verification_expires_at: Date;
 }

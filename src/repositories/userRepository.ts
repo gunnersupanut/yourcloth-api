@@ -59,12 +59,12 @@ export const userRepository = {
         SET 
             verification_token = $1,
             verification_expires_at = $2
-        WHERE id = $3
+        WHERE email = $3
         `;
         const values = [
             data.verification_token,
             data.verification_expires_at,
-            data.userId
+            data.email
         ];
         await pool.query(sql, values);
     },
