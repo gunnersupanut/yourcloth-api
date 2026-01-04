@@ -13,7 +13,7 @@ export const userRepository = {
     },
     findByEmail: async (email: string) => {
         const sql = `
-        SELECT id,username
+        SELECT id, username, is_verify
         FROM users
         WHERE email = $1
         `

@@ -82,6 +82,16 @@ export const authService = {
         return { status: "SUCCESS", user: updatedUser };
     },
     resendEmail: async (email: string) => {
+        // ลองหา user ก่อน
+        const user = await userRepository.findByEmail(email);
+        // ถ้าไม่มี
+        if (!user) {
+            throw new Error("user_not_found");
+        }
+        // ถ้า Verify ไปแล้ว จะส่งไปทำไม? ให้จบเลย
+        if (user.is_verify) {
+            throw new Error("already_verified");
+        }
         // สร้างโทเคน
         const verificationToken = uuidv4();
         // สร้างเวลาหมดอายุ (ปัจจุบัน + 30 นาที)

@@ -88,7 +88,7 @@ export const verifyController = async (req: Request<unknown, unknown, unknown, V
         });
     } catch (error: any) {
         if (error.message === "invalid_token") {
-            return res.status(400).send({ message: "Invalid or Expired Token." });
+            return res.status(400).json({ message: "Invalid or Expired Token." });
         }
         console.error(error);
         return res.status(500).json({ message: "Internal Server Error" });
@@ -103,6 +103,10 @@ export const resentEmailController = async (req: Request<unknown, unknown, resen
         await authService.resendEmail(email);
         return res.status(200).json({ message: "Verification email has been resent successfully." });
     } catch (error) {
+        if (error instanceof Error) {
+            if (error.message === "user_not_found") return res.status(400).json({ message: "Invalid data. Please try again." })
+            if (error.message === "already_verified") return res.status(400).json({ message: "Account already verified." })
+        }
         console.error(error);
         return res.status(500).json({ message: "Could not send email. Please try again." });
     }
