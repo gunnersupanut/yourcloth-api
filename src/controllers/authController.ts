@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { LoginRequestBody, RegisterRequestBody, resendEmailRequestBody } from '../type/user.type';
+import { forgotPasswordRequestBody, LoginRequestBody, RegisterRequestBody, resendEmailRequestBody, resetPasswordReq } from '../type/user.type';
 import { authService } from "../services/authService";
 
 // Email
@@ -69,10 +69,10 @@ export const loginController = async (req: Request<unknown, unknown, LoginReques
     }
 }
 
-interface VerifyEmailQuery {
+interface tokenformEmailQuery {
     token: string;
 }
-export const verifyController = async (req: Request<unknown, unknown, unknown, VerifyEmailQuery>,
+export const verifyController = async (req: Request<unknown, unknown, unknown, tokenformEmailQuery>,
     res: Response) => {
     // รับ Token จาก frontend
     const { token } = req.query;
@@ -80,11 +80,10 @@ export const verifyController = async (req: Request<unknown, unknown, unknown, V
     // แกะ Token
     try {
         // เรียก Service
-        const result = await authService.verifyEmail(token as string);
+        await authService.verifyEmail(token as string);
         // สำเร็จ
         res.status(200).json({
-            message: "Email verified successfully!",
-            user: result.user
+            message: "Email verified successfully.",
         });
     } catch (error: any) {
         if (error.message === "invalid_token") {
@@ -109,5 +108,54 @@ export const resentEmailController = async (req: Request<unknown, unknown, resen
         }
         console.error(error);
         return res.status(500).json({ message: "Could not send email. Please try again." });
+    }
+};
+
+export const forgotPasswordController = async (req: Request<unknown, unknown, forgotPasswordRequestBody>, res: Response) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).send("Invalid data. Please try again.");
+    try {
+        await authService.forgotpassword(email);
+        return res.status(200).json({ message: "Reset Password email has been sent successfully." });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ message: "Could not send email. Please try again." });
+    }
+};
+export const checkResetPasswordTokenController = async (req: Request<unknown, unknown, tokenformEmailQuery>, res: Response) => {
+    const { token } = req.query;
+    if (!token || typeof token !== 'string') {
+        return res.status(400).json({ message: "No token provided" });
+    }
+    try {
+        await authService.checkResetToken(token);
+        // ถ้าไม่ Error แปลว่าผ่าน
+        return res.status(200).json({ message: "Check reset password token succesfully." });
+
+    } catch (error: any) {
+        // แยก Case ให้ Frontend รู้หน่อยก็ดี
+        if (error.message === "invalid_token") {
+            return res.status(400).json({ message: "Invalid or Expired Token." });
+        }
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+};
+export const resetPasswordContoller = async (req: Request<unknown, unknown, resetPasswordReq>, res: Response) => {
+    const { password, token } = req.body
+    if (!token || !password) return res.status(400).send("Invalid data. Please try again.");
+    try {
+        const resetPasswordPayload: resetPasswordReq = {
+            token: token as string,
+            password
+        }
+        await authService.resetPassword(resetPasswordPayload)
+        // ถ้าผ่าน
+        return res.status(200).json({ message: "Reset password successfully." });
+    } catch (error: any) {
+        if (error.message === "invalid_token") {
+            return res.status(400).json({ message: "Invalid or Expired Token." });
+        }
+        console.error(error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
 };

@@ -15,6 +15,9 @@ export interface resendEmailRequestBody {
     email: string;
 }
 
+export interface forgotPasswordRequestBody {
+    email: string
+}
 export interface CreateUserParams {
     username: string;
     password_hash: string;
@@ -29,3 +32,13 @@ export interface updateTokenParams {
     verification_expires_at: Date;
 }
 
+export interface createResetPasswordTokenParams {
+    email: string;
+    reset_password_token: string;
+    reset_password_expires_at: Date;
+}
+
+export interface resetPasswordReq {
+    token: string,
+    password: string
+}

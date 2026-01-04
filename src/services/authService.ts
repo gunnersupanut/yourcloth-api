@@ -1,9 +1,9 @@
 import { userRepository } from "../repositories/userRepository";
 import Jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from 'uuid';
-import { CreateUserParams, LoginRequestBody, RegisterRequestBody, updateTokenParams } from "../type/user.type";
+import { createResetPasswordTokenParams, CreateUserParams, LoginRequestBody, RegisterRequestBody, resetPasswordReq, updateTokenParams } from "../type/user.type";
 import bcrypt from 'bcrypt';
-import { emailService, sendEmail } from "./emailService";
+import { emailService } from "./emailService";
 
 export const authService = {
     login: async (payload: LoginRequestBody) => {
@@ -67,8 +67,71 @@ export const authService = {
             console.error("ส่งเมลไม่ผ่าน:", error)
         }
     },
+    forgotpassword: async (email: string) => {
+        // หา user ก่อน
+        const user = await userRepository.findByEmail(email);
+        // ถ้าไม่มี
+        if (!user) {
+            return;
+        }
+        // ถ้ามี
+        // สร้างโทเคน
+        const resetPasswordToken = uuidv4();
+        // สร้างเวลาหมดอายุ (ปัจจุบัน + 30 นาที)
+        const expiresAt = new Date();
+        expiresAt.setMinutes(expiresAt.getMinutes() + 60);
+        // เตรียมข้อมูลส่งไป CreateResetPassword Repository
+        const resetPasswordTokenParams: createResetPasswordTokenParams = {
+            email,
+            reset_password_token: resetPasswordToken,
+            reset_password_expires_at: expiresAt
+        }
+        await userRepository.createResetPasswordToken(resetPasswordTokenParams);
+        // ส่งเมล
+        try {
+            await emailService.sendResetPasswordEmail(email, resetPasswordToken);
+        } catch (error) {
+            console.error("ส่งเมลไม่ผ่าน:", error)
+        }
+    },
+    checkResetToken: async (token: string) => {
+        const user = await userRepository.findByResetToken(token);
+
+        // ถ้าไม่เจอ (Token มั่ว หรือ ถูกใช้ไปแล้วแล้วลบทิ้ง)
+        if (!user) {
+            throw new Error("invalid_token");
+        }
+
+        // เช็คหมดอายุ
+        if (new Date() > user.reset_password_expires_at) {
+            throw new Error("invalid_token");
+        }
+    },
+    resetPassword: async (payload: resetPasswordReq) => {
+        const { token, password } = payload
+        // เช็ค Token
+        const user = await userRepository.findByResetToken(token);
+
+        // ถ้าไม่เจอ (Token มั่ว หรือ ถูกใช้ไปแล้วแล้วลบทิ้ง)
+        if (!user) {
+            throw new Error("invalid_token");
+        }
+
+        // เช็คหมดอายุ
+        if (new Date() > user.reset_password_expires_at) {
+            throw new Error("invalid_token");
+        }
+        // hash Password
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash(password, saltRounds)
+        // เตรียมข้อมูล updatePassword
+        const updatePasswordData: resetPasswordReq = {
+            token, password: passwordHash
+        }
+        // อัพเดต password
+        await userRepository.updatePassword(updatePasswordData)
+    },
     verifyEmail: async (token: string) => {
-        // เช็ค token
         // ถ้าผ่าน เรียก Repo
         const user = await userRepository.findByVerificationToken(token);
         if (!user) throw new Error("invalid_token")
@@ -76,10 +139,8 @@ export const authService = {
         if (new Date() > user.verification_expires_at) {
             throw new Error("invalid_token");
         }
-
         // ถ้ายัง ให้ Repo อัปเดต
-        const updatedUser = await userRepository.verifyUser(user.id);
-        return { status: "SUCCESS", user: updatedUser };
+        await userRepository.verifyUser(user.id);
     },
     resendEmail: async (email: string) => {
         // ลองหา user ก่อน

@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { getVerificationEmailHtml } from '../utils/emailTemplates';
+import { getVerificationEmailHtml, resetPasswordEmailHtml } from '../utils/emailTemplates';
 
 // สร้าง Transporter
 const transporter = nodemailer.createTransport({
@@ -42,6 +42,12 @@ export const emailService = {
 
     // รอเพิ่ม
     sendResetPasswordEmail: async (email: string, token: string) => {
-        // ... logic 
-    }
+        const link = `${process.env.CLIENT_URL}/resetpassword?token=${token}`;
+        const subject = "Reset Password Email";
+        // เรียกเอา HTML มาจากไฟล์ Template
+        const htmlContent = resetPasswordEmailHtml(link);
+
+        // เรียกฟังก์ชันส่ง
+        await sendEmail(email, subject, htmlContent);
+    },
 };

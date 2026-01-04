@@ -1,5 +1,5 @@
 import express from 'express';
-import { loginController, registerController, resentEmailController, verifyController } from '../controllers/authController';
+import { checkResetPasswordTokenController, forgotPasswordController, loginController, registerController, resentEmailController, resetPasswordContoller, verifyController } from '../controllers/authController';
 const router = express.Router();
 import rateLimit from 'express-rate-limit';
 // กัน spam email
@@ -21,7 +21,9 @@ router.post('/login', loginController);
 
 // ---verify email
 router.get('/verify-email', verifyController)
-
-
 router.post('/resent-email', resendEmailLimiter, resentEmailController)
+router.post('/forgotpassword',resendEmailLimiter, forgotPasswordController)
+router.get('/checkresetpasswordtoken', checkResetPasswordTokenController)
+router.post('/resetpassword', resetPasswordContoller)
+
 export default router

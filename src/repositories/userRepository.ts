@@ -1,5 +1,5 @@
 import pool from '../config/db';
-import { CreateUserParams, updateTokenParams } from '../type/user.type';
+import { createResetPasswordTokenParams, CreateUserParams, resetPasswordReq, updateTokenParams } from '../type/user.type';
 
 export const userRepository = {
     findByUsername: async (username: string) => {
@@ -37,6 +37,14 @@ export const userRepository = {
         const result = await pool.query(sql, [token]);
         return result.rows[0];
     },
+    findByResetToken: async (token: string) => {
+        const sql = `
+        SELECT id, reset_password_expires_at FROM users 
+        WHERE reset_password_token = $1
+    `;
+        const result = await pool.query(sql, [token]);
+        return result.rows[0];
+    },
     addNewUser: async (data: CreateUserParams) => {
         const sql = `
             INSERT INTO users (username, password_hash, email, verification_token, verification_expires_at)
@@ -50,6 +58,35 @@ export const userRepository = {
             data.email,
             data.verification_token,
             data.verification_expires_at
+        ];
+        await pool.query(sql, values);
+    },
+    createResetPasswordToken: async (data: createResetPasswordTokenParams) => {
+        const sql = `
+          UPDATE users 
+           SET 
+            reset_password_token = $1,
+            reset_password_expires_at = $2
+        WHERE email = $3
+        `
+        const values = [
+            data.reset_password_token,
+            data.reset_password_expires_at,
+            data.email
+        ];
+        await pool.query(sql, values);
+    },
+    updatePassword: async (data: resetPasswordReq) => {
+        const sql = `
+           UPDATE users 
+        SET 
+            password_hash = $1,
+            reset_password_token = NULL,     
+            reset_password_expires_at = NULL  
+        WHERE reset_password_token = $2
+        `;
+        const values = [
+            data.password, data.token
         ];
         await pool.query(sql, values);
     },
@@ -74,9 +111,7 @@ export const userRepository = {
             verification_token = NULL,    
             verification_expires_at = NULL
         WHERE id = $1
-        RETURNING id, username, email, is_verify
         `;
-        const result = await pool.query(sql, [id]);
-        return result.rows[0];
+        await pool.query(sql, [id]);
     }
 }
