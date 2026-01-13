@@ -70,7 +70,23 @@ export const productRepository = {
         FROM product_variants pv
         JOIN sizes AS si ON pv.size_id = si.id
         WHERE pv.product_id = pd.id 
-        ) AS available_sizes
+        ) AS available_sizes,
+        (
+          SELECT JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'variant_id', v.id,
+              'color_name', col.name,
+              'color_code', col.hex_code,
+              'size', sz.name,
+              'price', v.price,
+              'stock', v.stock_quantity 
+            ) ORDER BY v.id ASC
+          )
+        FROM product_variants v
+          JOIN colors col ON v.color_id = col.id
+          JOIN sizes sz ON v.size_id = sz.id
+          WHERE v.product_id = pd.id
+        ) AS variants
         FROM products AS pd 
         LEFT JOIN categories AS c ON pd.category_id = c.id
         LEFT JOIN genders AS gd ON pd.gender_id = gd.id
