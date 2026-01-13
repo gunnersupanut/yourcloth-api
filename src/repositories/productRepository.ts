@@ -1,6 +1,16 @@
 import pool from "../config/db";
 
 export const productRepository = {
+    getStockQuantity: async (product_variant_id: number) => {
+        const sql =
+            'SELECT stock_quantity FROM product_variants WHERE id = $1';
+
+        const result = await pool.query(sql, [product_variant_id])
+        if (result.rows.length === 0) {
+            return 0;
+        }
+        return result.rows[0].stock_quantity;
+    },
     getAllProduct: async () => {
         const sql =
             `
