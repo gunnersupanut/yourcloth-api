@@ -3,10 +3,15 @@ import { getVerificationEmailHtml, resetPasswordEmailHtml } from '../utils/email
 
 // สร้าง Transporter
 const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: "smtp.gmail.com", // Host
+    port: 587, // Render มักจะยอมช่องทางนี้
+    secure: false, // false สำหรับ port 587 (มันจะใช้ STARTTLS)
     auth: {
         user: process.env.Email_USER,
         pass: process.env.Email_PASS,
+    },
+    tls: {
+        rejectUnauthorized: false
     }
 })
 
@@ -15,6 +20,7 @@ export const sendEmail = async (to: string, subject: string, html: string) => {
     try {
         const info = await transporter.sendMail({
             from: '"Your Cloth"<no-reply@yourcloth.com>', // ชื่อผู้ส่ง
+
             to: to, // ส่งหาใคร
             subject: subject, // หัวข้อ
             html: html, //เนื้อหา
