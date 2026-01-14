@@ -1,33 +1,26 @@
-import nodemailer from 'nodemailer';
+import * as Brevo from '@getbrevo/brevo';
 import { getVerificationEmailHtml, resetPasswordEmailHtml } from '../utils/emailTemplates';
 
-// สร้าง Transporter
-const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com", // Host
-    port: 465,
-    secure: true, 
-    auth: {
-        user: process.env.Email_USER,
-        pass: process.env.Email_PASS,
-    },
-    // ทำให้ห้มันไม่เรื่องมากเรื่อง Certificate
-    tls: {
-        rejectUnauthorized: false
-    }
-})
+//  Setup API Client
+const apiInstance = new Brevo.TransactionalEmailsApi();
+apiInstance.setApiKey(
+    Brevo.TransactionalEmailsApiApiKeys.apiKey, // Key หลัก
+    process.env.BREVO_API_KEY || '' // Key ของเรา
+);
 
 // ฟังก์ชั่นส่งเมล
 export const sendEmail = async (to: string, subject: string, html: string) => {
-    try {
-        const info = await transporter.sendMail({
-            from: '"Your Cloth"<no-reply@yourcloth.com>', // ชื่อผู้ส่ง
+    const sendSmtpEmail = new Brevo.SendSmtpEmail();
+    sendSmtpEmail.subject = subject;
+    sendSmtpEmail.htmlContent = html;
 
-            to: to, // ส่งหาใคร
-            subject: subject, // หัวข้อ
-            html: html, //เนื้อหา
-        })
-        console.log("Message sent: %s", info.messageId);
-        return info;
+    sendSmtpEmail.sender = { "name": "YourCloth Admin", "email": "yourclothc@gmail.com" };
+    sendSmtpEmail.to = [{ "email": to }];
+
+    try {
+        const data = await apiInstance.sendTransacEmail(sendSmtpEmail)
+        console.log("Brevo Email sent successfully:");
+        return data;
     } catch (error) {
         console.error("Error sending email:", error);
         throw error;
