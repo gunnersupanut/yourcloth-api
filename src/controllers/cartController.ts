@@ -41,29 +41,10 @@ export const getCartController = async (req: Request, res: Response) => {
     const userId = (req.user as CustomJwtPayload).id;
 
     try {
-        // --- Get Sql
-        const getCartSql = `
-        SELECT 
-        ci.id,
-        pd.product_name,
-        cl.name AS color,
-        pd.price,
-        si.name AS size,
-        pd.description,
-        pd.image_url,
-        ci.quantity
-        FROM cart_item as ci
-        JOIN product_variants pv ON ci.product_variant_id = pv.id
-        JOIN sizes si ON pv.size_id = si.id
-        JOIN colors cl ON pv.color_id = cl.id
-        JOIN products pd ON pv.product_id = pd.id
-        WHERE ci.user_id = $1
-        `;
-        const result = await pool.query(getCartSql, [userId])
-        if (result.rows.length <= 0) return res.status(200).json({ message: "You don't Have item in cart", result: [] })
+        const result = await cartService.getCartItem(userId);
         res.status(200).json({
             message: "Get cart product complete.",
-            result: result.rows
+            result: result
         })
     } catch (error: any) {
         if (error instanceof Error) {

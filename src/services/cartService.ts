@@ -25,5 +25,9 @@ export const cartService = {
         // ถ้าผ่านไปเพิ่มของ/สร้าง ตระกร้า
         const result = await cartRepository.createCart(userId, variantId, quantityToAdd);
         return result
+    },
+    getCartItem: async (userId: number) => {
+        const cartItem = await cartRepository.getCartItem(userId);
+        return cartItem
     }
 };
