@@ -1,6 +1,6 @@
 export const getVerificationEmailHtml = (link: string) => {
     return `
-     <!DOCTYPE html>
+      <!DOCTYPE html>
   <html>
   <head>
       <meta charset="UTF-8">
@@ -26,7 +26,7 @@ export const getVerificationEmailHtml = (link: string) => {
                               </h1>
                               
                               <p style="color: #555555; font-size: 16px; line-height: 1.5; margin: 0 0 30px 0;">
-                                  Thanks for signing up for YourCloth <br>
+                                  Thanks for signing up for YourCloth!<br>
                                   Please click the button below to verify your email address and activate your account.
                               </p>
 
@@ -36,7 +36,7 @@ export const getVerificationEmailHtml = (link: string) => {
                                           <a href="${link}" 
                                              style="display: inline-block; padding: 14px 30px; 
                                                     background-color: #FFCD02; 
-                                                    color: #684C6B; /* ใช้สีม่วงเข้มบนพื้นเหลืองเพื่อให้อ่านง่าย */
+                                                    color: #684C6B; 
                                                     text-decoration: none; 
                                                     border-radius: 5px; 
                                                     font-size: 16px; 
@@ -49,10 +49,11 @@ export const getVerificationEmailHtml = (link: string) => {
                               </table>
 
                               <p style="color: #999999; font-size: 14px; margin-top: 30px;">
-                                  This link will expire in 30 minutes.
+                                  This link will expire in 24 hours.
                               </p>
 
                               <hr style="border: none; border-top: 1px solid #eeeeee; margin: 20px 0;">
+                              
                               <p style="color: #aaaaaa; font-size: 12px; margin: 0;">
                                   If the button above doesn't work, copy and paste the following link into your browser:<br>
                                   <a href="${link}" style="color: #684C6B; word-break: break-all;">
@@ -70,8 +71,8 @@ export const getVerificationEmailHtml = (link: string) => {
 
   </body>
   </html>    
-     `;
-};
+      `;
+  };
 
 export const resetPasswordEmailHtml = (link: string) => {
     return `
