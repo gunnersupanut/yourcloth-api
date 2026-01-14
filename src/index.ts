@@ -7,6 +7,8 @@ import pool from './config/db';
 dotenv.config();
 
 const app = express();
+// เชื่อใจ Proxy ตัวแรกสุดที่ส่งมา ื( Render Load Balancer)
+app.set('trust proxy', 1);
 const port = process.env.PORT || 5000;
 const nodeEnv = process.env.NODE_ENV
 
