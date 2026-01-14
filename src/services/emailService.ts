@@ -4,12 +4,13 @@ import { getVerificationEmailHtml, resetPasswordEmailHtml } from '../utils/email
 // สร้าง Transporter
 const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com", // Host
-    port: 587, // Render มักจะยอมช่องทางนี้
-    secure: false, // false สำหรับ port 587 (มันจะใช้ STARTTLS)
+    port: 465,
+    secure: true, 
     auth: {
         user: process.env.Email_USER,
         pass: process.env.Email_PASS,
     },
+    // ทำให้ห้มันไม่เรื่องมากเรื่อง Certificate
     tls: {
         rejectUnauthorized: false
     }
