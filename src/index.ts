@@ -1,8 +1,6 @@
 import express from 'express';
-import type { Request, Response } from 'express'; // Type
 import dotenv from "dotenv";
 import cors from 'cors';
-import pool from './config/db';
 // โหลดตัวแปรจาก .env
 dotenv.config();
 
