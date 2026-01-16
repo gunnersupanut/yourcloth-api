@@ -4,6 +4,7 @@ import { CustomJwtPayload } from "../type/jwt.type";
 import { ParamsDictionary } from 'express-serve-static-core';
 import { AppError } from '../utils/AppError';
 import { cartService } from "../services/cartService";
+import { UpdateCartItemParams, UpdateCartParams } from "../type/cart.typs";
 interface addCartRequest {
     product_variant_id: number;
     quantity: number;
@@ -57,52 +58,36 @@ export const getCartController = async (req: Request, res: Response) => {
 }
 
 interface updateCartBodyRequest {
-    quantity: number
+    quantity: number;
+    variantId: number;
 }
 
-export interface updateCartParamsRequest extends ParamsDictionary {
-    cartId: string;
-}
 
-export const updateCartController = async (req: Request<updateCartParamsRequest, unknown, updateCartBodyRequest>, res: Response) => {
-    const { cartId } = req.params
+
+export const updateCartController = async (req: Request<UpdateCartParams, unknown, updateCartBodyRequest>, res: Response) => {
     const userId = (req.user as CustomJwtPayload).id;
-    const { quantity } = req.body
-    // แปลง cartId เป็น number
-    const cartIdAsNumber = parseInt(cartId, 10);
-    if (isNaN(cartIdAsNumber)) {
-        return res.status(400).json({ error: 'Cart ID must be a number' });
-    }
+    const { quantity, variantId } = req.body
+    const cartId = Number(req.params.cartId);
     if (!quantity || quantity <= 0) return res.status(400).json({ error: 'quantity must be greater than 0.' })
+    if (isNaN(cartId)) {
+        return res.status(400).json({ error: 'Invalid Cart ID' });
+    }
+    if (!variantId) {
+        return res.status(400).json({ error: 'Missing required fields (variantId).' });
+    }
     try {
-        // // --- เช็ค Stock
-
-        // const stockSql = `
-        // SELECT stock_quantity 
-        // FROM product_variants pv 
-        // JOIN cart_item ci ON ci.product_variant_id = pv.id
-        // WHERE ci.id = $1 AND ci.user_id = $2
-        // `;
-        // const stockResult = await pool.query(stockSql, [cartIdAsNumber, userId]);
-        // // ถ้า product variant ไม่มี
-        // if (stockResult.rows.length === 0) {
-        //     return res.status(404).json({ error: 'Cart item not found.' });
-        // }
-        // const realStock: number = stockResult.rows[0].stock_quantity;
-        // // --ถ้าจำนวนใหม่มากกว่าของใน Stock
-        // if (quantity > realStock) return res.status(400).json({ error: 'Stock not sufficient.' })
-        // --- Update Sql
-        const updateCartSql = `
-        UPDATE cart_item 
-        SET quantity = $1
-        WHERE id = $2 AND user_id = $3
-            `;
-        await pool.query(updateCartSql, [quantity, cartIdAsNumber, userId])
+        // เตรียม payload
+        const updateCartPayload: UpdateCartItemParams = {
+            userId, variantId, cartId, quantity
+        }
+        // UpdateCart
+        const updateCart = await cartService.updateCartItem(updateCartPayload);
         res.status(200).json({
             message: `Update cart ${cartId} complete.`,
+            result: updateCart
         })
-        // แก้ด้วยตอนทำ update
-    } catch (error) {
+    } catch (error: any) {
+        //  ดัก AppError ตัวเดียวจบ 
         if (error instanceof AppError) {
             return res.status(error.statusCode).json({
                 status: 'error',
@@ -110,13 +95,35 @@ export const updateCartController = async (req: Request<updateCartParamsRequest,
                 data: error.data
             });
         }
-        // กรณี Error อื่นๆ ที่เราไม่ได้ตั้งใจ (เช่น Database ล่ม)
-        console.error(error);
+
+        // กรณี Database Error หรือ Code บัค
+        console.error("Update Cart Error:", error);
         return res.status(500).json({ message: "Internal Server Error" });
     }
 }
 
-export const deleteCartController = async (req: Request<updateCartParamsRequest, unknown, updateCartBodyRequest>, res: Response) => {
-    const { cartId } = req.params
+export const deleteCartController = async (req: Request<UpdateCartParams, unknown, updateCartBodyRequest>, res: Response) => {
     const userId = (req.user as CustomJwtPayload).id;
+    const cartId = Number(req.params.cartId);
+    // เช็คว่ามี CartId ไหม
+    if (isNaN(cartId)) {
+        return res.status(400).json({ error: 'Invalid Cart ID' });
+    }
+    try {
+        // ลบ
+        await cartService.deleteCart(cartId, userId);
+        // ถ้าผ่าน
+        res.status(200).json({ message: "Deleted successfully" });
+        // ถ้า error
+    } catch (error: any) {
+        if (error instanceof AppError) {
+            return res.status(error.statusCode).json({
+                status: 'error',
+                message: error.message,
+                data: error.data
+            });
+        }
+        console.error("Delete Cart Error:", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
 }

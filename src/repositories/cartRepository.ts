@@ -17,6 +17,7 @@ export const cartRepository = {
         pd.id AS product_id,
         pv.id AS variant_id,
         pd.product_name,
+        ct.name AS category,
         cl.name AS color,
         pv.price,
         si.name AS size,
@@ -29,6 +30,7 @@ export const cartRepository = {
         JOIN sizes si ON pv.size_id = si.id
         JOIN colors cl ON pv.color_id = cl.id
         JOIN products pd ON pv.product_id = pd.id
+        JOIN categories ct ON pd.category_id = ct.id
         WHERE ci.user_id = $1
         ORDER BY ci.created_at ASC
         `;
@@ -46,5 +48,24 @@ export const cartRepository = {
     `;
         const result = await pool.query(sql, [userId, variantId, quantityToAdd]);
         return result.rows[0];
+    },
+    updateCart: async (quantity: number, cartId: number, userId: number, variantId: number) => {
+        const sql = `
+        UPDATE cart_item 
+        SET quantity = $1
+        WHERE id = $2 AND user_id = $3 AND product_variant_id = $4
+        RETURNING *
+            `;
+        const result = await pool.query(sql, [quantity, cartId, userId, variantId])
+        return result;
+    },
+    deleteCartItem: async (cartId: number, userId: number) => {
+        const sql = `
+        DELETE FROM cart_item 
+        WHERE id = $1 AND user_id = $2 
+        RETURNING *;
+    `;
+        const result = await pool.query(sql, [cartId, userId]);
+        return result.rows[0]; 
     },
 }
