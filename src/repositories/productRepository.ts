@@ -1,5 +1,5 @@
 import pool from "../config/db";
-
+import { PoolClient } from 'pg';
 export const productRepository = {
     getStockQuantity: async (product_variant_id: number) => {
         const sql =
@@ -108,5 +108,38 @@ export const productRepository = {
         `;
         const result = await pool.query(sql, [product_id])
         return result.rows[0];
+    },
+    decreaseStock: async (items: any[], client: PoolClient) => {
+        // ถ้าไม่มีของให้ตัด 
+        if (items.length === 0) return;
+
+        const values: any[] = [];
+        const placeholders: string[] = [];
+        let paramIndex = 1;
+
+        // วนลูปเตรียม(Values List)
+        items.forEach((item) => {
+            // item ต้องมี variantId และ quantity
+            // สร้างคู่ ($1, $2) ::int เพื่อบอก DB ว่าเป็นตัวเลขแน่ๆ 
+            placeholders.push(`($${paramIndex}::int, $${paramIndex + 1}::int)`);
+
+            values.push(item.variantId, item.quantity);
+
+            paramIndex += 2;
+        });
+
+        // อัปเดตตาราง product_variants (v)
+        // โดยให้ stock_quantity = stock เดิม - quantity ที่ส่งมา (t.quantity)
+        // จากข้อมูลใน VALUES (t) ที่มีคอลัมน์ชื่อ id และ quantity
+        // โดยจับคู่ที่ v.id ตรงกับ t.id
+        const sql = `
+            UPDATE product_variants AS v
+            SET stock_quantity = v.stock_quantity - t.quantity
+            FROM (VALUES ${placeholders.join(', ')}) AS t(id, quantity)
+            WHERE v.id = t.id
+        `;
+
+        // ตัดสต็อกรวดเดียว
+        await client.query(sql, values);
     }
 }
