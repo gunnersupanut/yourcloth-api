@@ -1,6 +1,6 @@
 import express from "express"
 import { authMiddleware } from "../middleware/authMiddleware";
-import { addCartController, deleteCartController, getCartController, updateCartController } from "../controllers/cartController";
+import { addCartController, deleteCartController, deleteSelectedCartsController, getCartController, updateCartController } from "../controllers/cartController";
 const router = express.Router();
 
 // Add To Cart
@@ -13,5 +13,8 @@ router.get('/', authMiddleware, getCartController)
 router.patch('/:cartId', authMiddleware, updateCartController)
 
 // Delete
+router.delete('/bulk', authMiddleware, deleteSelectedCartsController)
+
 router.delete('/:cartId', authMiddleware, deleteCartController)
+
 export default router

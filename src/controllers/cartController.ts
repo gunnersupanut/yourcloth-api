@@ -4,7 +4,7 @@ import { CustomJwtPayload } from "../type/jwt.type";
 import { ParamsDictionary } from 'express-serve-static-core';
 import { AppError } from '../utils/AppError';
 import { cartService } from "../services/cartService";
-import { UpdateCartItemParams, UpdateCartParams } from "../type/cart.typs";
+import { DeleteSelectedCarts, UpdateCartItemParams, UpdateCartParams } from "../type/cart.typs";
 interface addCartRequest {
     product_variant_id: number;
     quantity: number;
@@ -124,6 +124,34 @@ export const deleteCartController = async (req: Request<UpdateCartParams, unknow
             });
         }
         console.error("Delete Cart Error:", error);
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+}
+
+export const deleteSelectedCartsController = async (req: Request<unknown, unknown, DeleteSelectedCarts>, res: Response) => {
+    const userId = (req.user as CustomJwtPayload).id;
+    const { cartIds } = req.body;
+    console.log("Body Received:", req.body);
+    // เช็คว่ามี CartId ไหม
+    // Validate 
+    if (!cartIds || !Array.isArray(cartIds) || cartIds.length === 0) {
+        return res.status(400).json({ error: "No items selected" });
+    }
+    try {
+        const deletedItems = await cartService.deleteSelectedCarts(cartIds, userId);
+        res.status(200).json({
+            message: `Deleted ${deletedItems.length} items successfully`,
+            deletedIds: deletedItems.map(i => i.id)
+        });
+    } catch (error: any) {
+        if (error instanceof AppError) {
+            return res.status(error.statusCode).json({
+                status: 'error',
+                message: error.message,
+                data: error.data
+            });
+        }
+        console.error("Delete Selected Cart Error:", error);
         return res.status(500).json({ message: "Internal Server Error" });
     }
 }

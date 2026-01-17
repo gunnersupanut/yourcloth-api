@@ -14,3 +14,7 @@ export interface ValidateStockParams {
     quantityRequest: number;
     isAccumulate: boolean;
 }
+
+export interface DeleteSelectedCarts {
+    cartIds: number;
+}

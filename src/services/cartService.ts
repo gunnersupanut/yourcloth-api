@@ -69,5 +69,10 @@ export const cartService = {
         }
 
         return deletedItem;
+    },
+    deleteSelectedCarts: async (cartIds: number[], userId: number) => {
+        // ถ้าส่งมาเปล่าๆ จบการทำงาน
+        if (cartIds.length === 0) return []; 
+        return await cartRepository.deleteCartItemsBulk(cartIds, userId);
     }
 };

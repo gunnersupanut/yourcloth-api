@@ -66,6 +66,16 @@ export const cartRepository = {
         RETURNING *;
     `;
         const result = await pool.query(sql, [cartId, userId]);
-        return result.rows[0]; 
+        return result.rows[0];
+    },
+    deleteCartItemsBulk: async (cartIds: number[], userId: number) => {
+        const sql = `
+        DELETE FROM cart_item 
+        WHERE id = ANY($1::int[]) 
+        AND user_id = $2         
+        RETURNING *;
+    `;
+        const result = await pool.query(sql, [cartIds, userId]);
+        return result.rows; 
     },
 }
