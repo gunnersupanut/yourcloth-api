@@ -15,3 +15,9 @@ export interface CreateAddressPayload {
     address: string;
     isDefault?: boolean;
 }
+export interface UpdateAddressPayload {
+    recipientName?: string;
+    phone?: string;
+    address?: string;
+    isDefault?: boolean;
+}
