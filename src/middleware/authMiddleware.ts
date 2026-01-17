@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { CustomJwtPayload } from '../type/jwt.type';
+import { CustomJwtPayload } from '../type/jwtType';
 const jwtSecret: string = process.env.JWT_SECRET as string
 
 

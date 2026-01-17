@@ -1,5 +1,5 @@
 import pool from '../config/db';
-import { createResetPasswordTokenParams, CreateUserParams, resetPasswordReq, updateTokenParams } from '../type/user.type';
+import { createResetPasswordTokenParams, CreateUserParams, resetPasswordReq, updateTokenParams } from '../type/userType';
 
 export const userRepository = {
     findByUsername: async (username: string) => {

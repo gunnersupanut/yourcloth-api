@@ -1,7 +1,7 @@
 import { userRepository } from "../repositories/userRepository";
 import Jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from 'uuid';
-import { createResetPasswordTokenParams, CreateUserParams, LoginRequestBody, RegisterRequestBody, resetPasswordReq, updateTokenParams } from "../type/user.type";
+import { createResetPasswordTokenParams, CreateUserParams, LoginRequestBody, RegisterRequestBody, resetPasswordReq, updateTokenParams } from "../type/userType";
 import bcrypt from 'bcrypt';
 import { emailService } from "./emailService";
 

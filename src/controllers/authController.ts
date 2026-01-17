@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { forgotPasswordRequestBody, LoginRequestBody, RegisterRequestBody, resendEmailRequestBody, resetPasswordReq } from '../type/user.type';
+import { forgotPasswordRequestBody, LoginRequestBody, RegisterRequestBody, resendEmailRequestBody, resetPasswordReq } from '../type/userType';
 import { authService } from "../services/authService";
 
 // Email

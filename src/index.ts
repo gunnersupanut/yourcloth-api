@@ -30,6 +30,9 @@ app.use("/api/v1/products", productsRouter)
 import cartsRouter from './routes/cart'
 app.use("/api/v1/carts", cartsRouter)
 
+// Address
+import addressRouter from './routes/address'
+app.use("/api/v1/addresses", addressRouter)
 // สั่งให้ Server มันเริ่มฟัง
 app.listen(port, () => {
   console.log(`[Server] 🚀Server is running...`);

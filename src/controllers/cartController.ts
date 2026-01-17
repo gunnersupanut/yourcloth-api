@@ -1,10 +1,8 @@
 import { Request, Response } from "express";
-import pool from "../config/db";
-import { CustomJwtPayload } from "../type/jwt.type";
-import { ParamsDictionary } from 'express-serve-static-core';
+import { CustomJwtPayload } from "../type/jwtType";
 import { AppError } from '../utils/AppError';
 import { cartService } from "../services/cartService";
-import { DeleteSelectedCarts, UpdateCartItemParams, UpdateCartParams } from "../type/cart.typs";
+import { DeleteSelectedCarts, UpdateCartItemParams, UpdateCartParams } from "../type/cartType";
 interface addCartRequest {
     product_variant_id: number;
     quantity: number;

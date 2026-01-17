@@ -1,7 +1,7 @@
 import { cartRepository } from "../repositories/cartRepository";
 import { productService } from "./productService"
 import { AppError } from '../utils/AppError';
-import { UpdateCartItemParams, ValidateStockParams } from "../type/cart.typs";
+import { UpdateCartItemParams, ValidateStockParams } from "../type/cartType";
 
 export const cartService = {
     validateStockAvailability: async (payload: ValidateStockParams) => {
