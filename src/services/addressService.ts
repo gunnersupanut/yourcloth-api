@@ -1,6 +1,7 @@
 import { addressRepository } from '../repositories/addressRepository';
 import pool from "../config/db";
 import { UpdateAddressPayload } from '../type/addressTypes';
+import { AppError } from '../utils/AppError';
 
 export const addressService = {
     getUserAddresses: async (userId: number) => {
@@ -54,6 +55,31 @@ export const addressService = {
 
         } catch (error) {
             await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    },
+    setDefault: async (userId: number, addressId: number) => {
+        const client = await pool.connect(); // เชื่อม DB
+
+        try {
+            await client.query('BEGIN'); // เริ่ม Transaction
+
+            // เซ็ตของ user คนนี้ให้เป็น false ทั้งหมดก่อน
+            await addressRepository.resetDefaultAddress(userId, client);
+
+            // เซ็ตตัวที่เลือกให้เป็น true
+            const result = await addressRepository.setDefaultAddress(userId, addressId, client)
+
+            if (result.length === 0) {
+                throw new AppError("Address not found", 404);
+            }
+            await client.query('COMMIT'); // บันทึกจริง
+            return result;
+
+        } catch (error) {
+            await client.query('ROLLBACK'); //  ย้อนกลับ error
             throw error;
         } finally {
             client.release();

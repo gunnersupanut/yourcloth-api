@@ -19,6 +19,7 @@ export const getOrderByIdController = async (req: Request, res: Response) => {
         if (error instanceof AppError) {
             return res.status(error.statusCode).json({ message: error.message });
         }
+        console.error(error);
         res.status(500).json({ message: "Internal Server Error" });
     }
 };
@@ -44,8 +45,6 @@ export const createOrderController = async (
         });
 
     } catch (error: any) {
-        console.error("Create Order Error:", error);
-
         // เช็คด้วย instanceof
         if (error instanceof AppError) {
             return res.status(error.statusCode).json({
@@ -54,7 +53,7 @@ export const createOrderController = async (
             });
         }
 
-        // error อื่นๆ ที่เราไม่รู้จัก 
+        console.error(error);
         res.status(500).json({ message: "Internal Server Error" });
     }
 };

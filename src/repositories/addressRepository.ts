@@ -22,6 +22,11 @@ export const addressRepository = {
         const result = await client.query(sql, [userId, recipientName, phone, address, isDefault || false]);
         return result.rows[0];
     },
+    setDefaultAddress: async (userId: number, addressId: number, client: Pool | PoolClient = pool) => {
+        const sql = `UPDATE addresses SET is_default = true WHERE id = $1 AND user_id = $2 RETURNING *`;
+        const result = await client.query(sql, [addressId, userId]);
+        return result.rows[0];
+    },
     // รับ Pool หรือ Client ก็ได้นะ แต่ถ้าไม่ส่งมา ให้ใช้ pool เป็นค่าเริ่มต้น
     resetDefaultAddress: async (userId: number, client: Pool | PoolClient = pool) => {
         const sql = `UPDATE user_addresses SET is_default = FALSE WHERE user_id = $1`;
