@@ -13,13 +13,43 @@ export const addressRepository = {
         return result.rows;
     },
     createAddress: async (userId: number, data: any, client: Pool | PoolClient = pool) => {
-        const { recipientName, phone, address, isDefault } = data;
+        const {
+            recipient_name,
+            phone_number,
+            address_detail,
+            province,
+            district,
+            sub_district,
+            zip_code,
+            is_default
+        } = data;
         const sql = `
-        INSERT INTO user_addresses (user_id, recipient_name, phone, address, is_default)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO user_addresses (
+            user_id, 
+            recipient_name, 
+            phone_number, 
+            address_detail, 
+            province, 
+            district, 
+            sub_district, 
+            zip_code, 
+            is_default
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
     `;
-        const result = await client.query(sql, [userId, recipientName, phone, address, isDefault || false]);
+        const result = await client.query(sql, [
+            userId,
+            recipient_name,
+            phone_number,
+            address_detail,
+            province,
+            district,
+            sub_district,
+            zip_code,
+            is_default
+        ]);
+
         return result.rows[0];
     },
     setDefaultAddress: async (userId: number, addressId: number, client: Pool | PoolClient = pool) => {

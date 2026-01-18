@@ -11,13 +11,21 @@ export interface UserAddress {
 
 export interface CreateAddressPayload {
     recipientName: string;
-    phone: string;
-    address: string;
+    phoneNumber: string;
+    province: string;
+    district: string;
+    subDistrict: string;
+    zipCode: string;
+    adddressDetail: string;
     isDefault?: boolean;
 }
 export interface UpdateAddressPayload {
     recipientName?: string;
-    phone?: string;
-    address?: string;
+    phoneNumber?: string;
+    province?: string;
+    district?: string;
+    subDistrict?: string;
+    zipCode?: string;
+    adddressDetails?: string;
     isDefault?: boolean;
 }

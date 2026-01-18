@@ -22,19 +22,32 @@ export const addAddressController = async (req: Request<unknown, unknown, Create
     try {
         const userId = (req.user as CustomJwtPayload).id;
 
-        const { recipientName, phone, address, isDefault } = req.body;
+        const {
+            recipientName,
+            phoneNumber,
+            province,
+            district,
+            subDistrict,
+            zipCode,
+            adddressDetail,
+            isDefault
+        } = req.body;
 
         // เช็คว่าส่งของมาครบไหม
-        if (!recipientName || !phone || !address) {
-            return res.status(400).json({ message: "กรอกข้อมูลให้ครบด้วยครับวัยรุ่น!" });
+        if (!recipientName || !phoneNumber || !adddressDetail || !province || !district || !subDistrict || !zipCode) {
+            return res.status(400).json({ message: "Please fill in all required fields." });
         }
 
         // ส่งข้อมูลไป Service 
         const newAddress = await addressService.addNewAddress(userId, {
-            recipientName,
-            phone,
-            address,
-            isDefault: isDefault || false
+            recipient_name: recipientName,
+            phone_number: phoneNumber,
+            address_detail: adddressDetail,
+            province: province,
+            district: district,
+            sub_district: subDistrict,
+            zip_code: zipCode,
+            is_default: isDefault || false
         });
 
         res.status(201).json({
