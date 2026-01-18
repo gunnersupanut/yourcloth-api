@@ -12,5 +12,24 @@ export const productService = {
         const result = await productRepository.getById(product_id)
         if (!result) throw new Error("product_not_found");
         return result
+    },
+    validateCheckoutItems: async (variantIds: number[]) => {
+        if (!variantIds || variantIds.length === 0) {
+            return [];
+        }
+        const rawProducts = await productRepository.getBulkByVariantIds(variantIds);
+
+        const formattedProducts = rawProducts.map((p: any) => ({
+            id: p.id,
+            name: p.product_name,
+            description: p.description,
+            price: Number(p.price),
+            stock: p.stock_quantity,
+            image: p.image_url,
+            size: p.size,
+            color: p.color
+        }));
+
+        return formattedProducts
     }
 }

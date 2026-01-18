@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { productService } from "../services/productService";
+import { AppError } from "../utils/AppError";
 
 
 export const getAllProductController = async (req: Request, res: Response) => {
@@ -45,6 +46,35 @@ export const getProductController = async (req: Request<getProductReq>, res: Res
         }
         console.error(`[Get Product ${productId}] Error:`, error);
         res.status(500).json({ error: "Internal Server Error" });
+    }
+}
+interface getCheckoutValidationReq {
+    variantIds: number
+}
+export const getCheckoutValidation = async (req: Request<unknown, unknown, getCheckoutValidationReq>, res: Response) => {
+    try {
+        const { variantIds } = req.body;
+
+        if (!Array.isArray(variantIds)) {
+            throw new AppError("Invalid payload: variantIds must be an array", 400);
+        }
+
+        const products = await productService.validateCheckoutItems(variantIds);
+
+        res.status(200).json({
+            message: "Product validation successful",
+            data: products
+        });
+    } catch (error: any) {
+        if (error instanceof AppError) {
+            return res.status(error.statusCode).json({
+                status: 'error',
+                message: error.message,
+                data: error.data
+            });
+        }
+        console.error("Delete Selected Cart Error:", error);
+        return res.status(500).json({ message: "Internal Server Error" });
     }
 }
 

@@ -1,11 +1,12 @@
 import express from "express";
-import { getAllProductController, getProductController } from "../controllers/productController";
+import { getAllProductController, getCheckoutValidation, getProductController } from "../controllers/productController";
 const router = express.Router();
 
 // Get All Product
 router.get('/', getAllProductController)
 
-// Get Product ?
+// Get Product 
 router.get('/:id', getProductController)
 
+router.post('/validate-checkout', getCheckoutValidation);
 export default router

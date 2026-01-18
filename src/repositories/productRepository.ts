@@ -109,6 +109,26 @@ export const productRepository = {
         const result = await pool.query(sql, [product_id])
         return result.rows[0];
     },
+    getBulkByVariantIds: async (variantIds: number[]) => {
+        const sql = `
+        SELECT 
+            v.id,
+            v.price,
+            v.stock_quantity,
+            p.description,
+            p.product_name,
+            p.image_url,
+            s.name AS size_name,
+            c.name AS color_name
+        FROM product_variants v
+        JOIN products p ON v.product_id = p.id
+        LEFT JOIN sizes s ON v.size_id = s.id
+        LEFT JOIN colors c ON v.color_id = c.id
+        WHERE v.id = ANY($1)
+    `;
+        const result = await pool.query(sql, [variantIds]);
+        return result.rows;
+    },
     decreaseStock: async (items: any[], client: PoolClient) => {
         // ถ้าไม่มีของให้ตัด 
         if (items.length === 0) return;
