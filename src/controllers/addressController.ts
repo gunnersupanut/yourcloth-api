@@ -32,7 +32,6 @@ export const addAddressController = async (req: Request<unknown, unknown, Create
             adddressDetail,
             isDefault
         } = req.body;
-
         // เช็คว่าส่งของมาครบไหม
         if (!recipientName || !phoneNumber || !adddressDetail || !province || !district || !subDistrict || !zipCode) {
             return res.status(400).json({ message: "Please fill in all required fields." });
@@ -87,7 +86,6 @@ export const updateAddressController = async (
     try {
         const userId = (req.user as CustomJwtPayload).id;
         const { id } = req.params;
-
         // ดึง Body มาเลย (ไม่ต้องกำหนด Type ซ้ำ เพราะ Generic จัดการให้แล้ว)
         const updateData = req.body;
 
