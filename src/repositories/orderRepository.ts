@@ -8,14 +8,15 @@ export const orderRepository = {
         // เลือก Column ที่จำเป็น (เอามาโชว์หน้า List)
         // payment_method, shipping_method อย่าลืม select มาด้วยถ้าจะใช้
         const fields = `
-            order_id, user_id, net_total, receiver_name, receiver_phone, address, 
-            product_name_snapshot, quantity, price_snapshot, 
+            order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id,
+            product_name_snapshot, quantity, price_snapshot,
             ordered_at, payment_method, shipping_method
         `;
 
         // UNION ALL 
         // ใช้ UNION ALL เร็วกว่า UNION ธรรมดา ไม่ต้องเช็คซ้ำ
         const sql = `
+        WITH all_orders AS (
             SELECT ${fields}, 'PENDING' as status FROM order_pending WHERE user_id = $1
             UNION ALL
             SELECT ${fields}, 'INSPECTING' as status FROM order_inspecting WHERE user_id = $1
@@ -27,8 +28,14 @@ export const orderRepository = {
             SELECT ${fields}, 'COMPLETE' as status FROM order_complete WHERE user_id = $1
             UNION ALL
             SELECT ${fields}, 'CANCEL' as status FROM order_cancel WHERE user_id = $1
-            
-            ORDER BY ordered_at DESC; -- เรียงจากใหม่ไปเก่า
+        )
+        SELECT 
+            ao.*,
+            p.image_url
+        FROM all_orders ao
+        LEFT JOIN product_variants pv ON ao.product_variants_id = pv.id
+        LEFT JOIN products p ON pv.product_id = p.id
+            ORDER BY ordered_at DESC;
         `;
 
         const result = await pool.query(sql, [userId]);
@@ -37,7 +44,7 @@ export const orderRepository = {
     findOrderById: async (orderId: number) => {
         // Select Column ที่จำเป็นออกมาให้หมด 
         const fields = `
-            order_id, user_id, net_total, receiver_name, receiver_phone, address, 
+            order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id,
             product_name_snapshot, quantity, price_snapshot, ordered_at
         `;
 
@@ -159,5 +166,18 @@ export const orderRepository = {
 
         // แปลงเป็น int ส่งกลับไป (DB มันส่งมาเป็น string สำหรับ bigint)
         return parseInt(result.rows[0].id);
+    }, 
+    createOrderLog: async (
+        orderId: number,
+        actionType: string,   // e.g., 'ORDER_CREATED', 'PAYMENT_UPLOADED'
+        actorName: string,
+        description: string,
+        client: PoolClient
+    ) => {
+        const sql = `
+            INSERT INTO order_logs (order_id, action_type, actor_name, description)
+            VALUES ($1, $2, $3, $4)
+        `;
+        await client.query(sql, [orderId, actionType, actorName, description]);
     },
 };

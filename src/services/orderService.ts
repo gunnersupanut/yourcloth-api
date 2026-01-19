@@ -111,7 +111,6 @@ export const orderService = {
                 phone: selectedAddress.phone_number,           // ชื่อตัวแปรใน DB
                 address: fullAddressString                     // 👈 นี่ไง! พระเอกของเรา
             };
-            console.log("selectedAddress", selectedAddress)
             // ---ดึงข้อมูลสินค้า (Variant) + เช็ค Stock
             const variantIds = items.map(item => item.variantId);
             // ---ดึงราคาและชื่อสินค้า ณ ปัจจุบันจาก DB (ห้ามเชื่อ Client)
@@ -170,6 +169,13 @@ export const orderService = {
             await productRepository.decreaseStock(readyItems, client);
             // ลบตะกร้าถ้ามาจากตระกร้า
             if (cartItemIds) await cartService.deleteSelectedCarts(cartItemIds, userId);
+            await orderRepository.createOrderLog(
+                orderGroupId,              // เลข Order ID
+                'ORDER_CREATED',           // Action Type
+                addressPayload.recipient_name, // Actor (เอาชื่อคนรับ หรือ username จาก token ก็ได้)
+                `User created order via Checkout (Total: ${grandTotal} THB)`, // Description
+                client                     // ส่ง client ตัวเดิมไป (ให้มัน Commit พร้อมกัน)
+            );
             await client.query('COMMIT');
 
             return {

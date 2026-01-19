@@ -48,7 +48,6 @@ export const createOrderController = async (
     req: Request<unknown, unknown, CreateOrderPayload>,
     res: Response
 ) => {
-    console.log("order body :", req.body)
     try {
         const userId = (req.user as CustomJwtPayload).id;
         const { addressId, items, paymentMethod, shippingMethod, cartItemIds } = req.body;
