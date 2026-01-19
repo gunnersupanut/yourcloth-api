@@ -35,7 +35,11 @@ import addressRouter from './routes/address'
 app.use("/api/v1/addresses", addressRouter)
 // Order
 import orderRouter from './routes/order'
+import { errorHandler } from './middleware/errorHandler';
 app.use("/api/v1/orders", orderRouter)
+
+// Global Hanler Error
+app.use(errorHandler);
 // สั่งให้ Server มันเริ่มฟัง
 app.listen(port, () => {
   console.log(`[Server] 🚀Server is running...`);
