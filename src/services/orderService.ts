@@ -1,7 +1,7 @@
 import pool from '../config/db';
 import { orderRepository } from '../repositories/orderRepository';
 import { addressRepository } from '../repositories/addressRepository';
-import { CreateOrderPayload } from '../type/orderTypes';
+import { CreateOrderPayload, OrderHistoryEntry } from '../type/orderTypes';
 import { AppError } from '../utils/AppError';
 import { productRepository } from '../repositories/productRepository';
 import { cartService } from './cartService';
@@ -49,6 +49,48 @@ export const orderService = {
         };
 
         return orderData;
+    },
+    getAllOrders: async (userId: number): Promise<OrderHistoryEntry[]> => {
+        // ดึงข้อมูลดิบ
+        const rawRows = await orderRepository.findAllOrdersByUserId(userId);
+        //  จัดกลุ่มตาม order_id 
+        const groupedOrders = rawRows.reduce((acc: any[], row: any) => {
+            // หาว่ามี order_id นี้ในตะกร้าหรือยัง
+            let order = acc.find(o => o.orderId === row.order_id);
+
+            if (!order) {
+                // ถ้ายังไม่มี ให้สร้างก้อน Order ใหม่
+                order = {
+                    orderId: row.order_id,
+                    status: row.status,
+                    orderedAt: row.ordered_at,
+                    totalAmount: 0,
+                    receiver: {
+                        name: row.receiver_name,
+                        phone: row.receiver_phone,
+                        address: row.address
+                    },
+                    items: [] // เตรียมถาดใส่สินค้า
+                };
+                acc.push(order);
+            }
+            // คำนวณราคารายการนี้
+            const lineTotal = Number(row.price_snapshot) * row.quantity;
+
+            // บวกทบเข้าไปในยอดรวมบิล
+            order.totalAmount += lineTotal;
+            // ยัดสินค้าลงใน items ของ Order นั้นๆ
+            order.items.push({
+                name: row.product_name_snapshot,
+                quantity: row.quantity,
+                price: Number(row.price_snapshot),
+                image: row.image_url
+            });
+
+            return acc;
+        }, []);
+
+        return groupedOrders;
     },
     createOrder: async (userId: number, data: CreateOrderPayload) => {
         const { addressId, items, paymentMethod, shippingMethod, cartItemIds } = data;

@@ -3,7 +3,37 @@ import { PoolClient } from 'pg';
 import { AppError } from '../utils/AppError';
 
 export const orderRepository = {
-    // หาข้อ order
+    // หา order
+    findAllOrdersByUserId: async (userId: number) => {
+        // เลือก Column ที่จำเป็น (เอามาโชว์หน้า List)
+        // payment_method, shipping_method อย่าลืม select มาด้วยถ้าจะใช้
+        const fields = `
+            order_id, user_id, net_total, receiver_name, receiver_phone, address, 
+            product_name_snapshot, quantity, price_snapshot, 
+            ordered_at, payment_method, shipping_method
+        `;
+
+        // UNION ALL 
+        // ใช้ UNION ALL เร็วกว่า UNION ธรรมดา ไม่ต้องเช็คซ้ำ
+        const sql = `
+            SELECT ${fields}, 'PENDING' as status FROM order_pending WHERE user_id = $1
+            UNION ALL
+            SELECT ${fields}, 'INSPECTING' as status FROM order_inspecting WHERE user_id = $1
+            UNION ALL
+            SELECT ${fields}, 'PACKING' as status FROM order_packing WHERE user_id = $1
+            UNION ALL
+            SELECT ${fields}, 'SHIPPING' as status FROM order_shipping WHERE user_id = $1
+            UNION ALL
+            SELECT ${fields}, 'COMPLETE' as status FROM order_complete WHERE user_id = $1
+            UNION ALL
+            SELECT ${fields}, 'CANCEL' as status FROM order_cancel WHERE user_id = $1
+            
+            ORDER BY ordered_at DESC; -- เรียงจากใหม่ไปเก่า
+        `;
+
+        const result = await pool.query(sql, [userId]);
+        return result.rows;
+    },
     findOrderById: async (orderId: number) => {
         // Select Column ที่จำเป็นออกมาให้หมด 
         const fields = `
