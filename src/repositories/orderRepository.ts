@@ -1,5 +1,6 @@
 import pool from '../config/db';
 import { PoolClient } from 'pg';
+import { AppError } from '../utils/AppError';
 
 export const orderRepository = {
     // หาข้อ order
@@ -51,13 +52,28 @@ export const orderRepository = {
     },
 
     // Bulk Insert ลง order_pending
-    createOrderPendingBulk: async (
+    createOrderGenericBulk: async (
+        tableName: string,
         orderGroupId: number,
         userId: number,
         addressData: any,
+        paymentMethod: string,
+        shippingMethod: string,
         itemsWithDetails: any[],
         client: PoolClient
     ) => {
+        // Security Guard: Whitelist (กัน SQL Injection)
+        const allowedTables = [
+            'order_pending',
+            'order_inspecting',
+            'order_packing',
+            'order_shipping',
+            'order_complete',
+            'order_cancel'
+        ];
+        if (!allowedTables.includes(tableName)) {
+            throw new AppError(`Table '${tableName}' is not allowed!`, 400);
+        }
         if (itemsWithDetails.length === 0) return;
 
         const values: any[] = [];
@@ -74,7 +90,8 @@ export const orderRepository = {
             // สร้างวงเล็บ ($1, $2, ..., $10, NOW())
             placeholders.push(`(
                 $${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, 
-                $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, NOW()
+                $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, 
+                $${paramIndex + 10}, $${paramIndex + 11}, NOW()
             )`);
 
             // ยัดค่าลงถัง (เรียงตามลำดับ INSERT ด้านล่าง)
@@ -88,20 +105,22 @@ export const orderRepository = {
                 recipient_name,         // $7: receiver_name
                 phone,                  // $8: receiver_phone
                 item.product_name,      // $9: product_name_snapshot (เช็คชื่อเต็มใน DB ให้ชัวร์)
-                lineTotal               // $10: net_total
+                lineTotal,               // $10: net_total
+                paymentMethod,
+                shippingMethod
             );
 
-            paramIndex += 10; // ขยับ Index ทีละ 10 ช่อง
+            paramIndex += 12;// ขยับ Index ทีละ 10 ช่อง
         });
 
         const sql = `
-            INSERT INTO order_pending (
+            INSERT INTO ${tableName} (
                 order_id, user_id, product_variants_id, price_snapshot, quantity, 
-                address, receiver_name, receiver_phone, product_name_snapshot, net_total, ordered_at
+                address, receiver_name, receiver_phone, product_name_snapshot, net_total, 
+                payment_method, shipping_method, ordered_at
             )
             VALUES ${placeholders.join(', ')}
         `;
-
         await client.query(sql, values);
     },
     getNextOrderGroupId: async (client: PoolClient) => {

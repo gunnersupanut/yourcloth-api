@@ -27,17 +27,18 @@ export const createOrderController = async (
     req: Request<unknown, unknown, CreateOrderPayload>,
     res: Response
 ) => {
+    console.log("order body :", req.body)
     try {
         const userId = (req.user as CustomJwtPayload).id;
-        const { addressId, items } = req.body;
+        const { addressId, items, paymentMethod, shippingMethod, cartItemIds } = req.body;
 
         // Validation 
-        if (!addressId || !items || items.length === 0) {
-            throw new AppError("Address and items are required.", 400);
+        if (!addressId || !items || items.length === 0 || !paymentMethod || !shippingMethod) {
+            throw new AppError("Missing required fields: Address, Items, Payment, or Shipping.", 400);
         }
 
         // เรียก Service
-        const result = await orderService.createOrder(userId, { addressId, items });
+        const result = await orderService.createOrder(userId, { addressId, items, paymentMethod, shippingMethod, cartItemIds });
 
         res.status(201).json({
             message: "Order created successfully!",
