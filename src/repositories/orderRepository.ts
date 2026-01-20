@@ -107,6 +107,7 @@ export const orderRepository = {
         addressData: any,
         paymentMethod: string,
         shippingMethod: string,
+        shippingCost: number,
         itemsWithDetails: any[],
         client: PoolClient
     ) => {
@@ -139,7 +140,7 @@ export const orderRepository = {
             placeholders.push(`(
                 $${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, 
                 $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, 
-                $${paramIndex + 10}, $${paramIndex + 11}, NOW()
+                $${paramIndex + 10}, $${paramIndex + 11},$${paramIndex + 12}, NOW()
             )`);
 
             // ยัดค่าลงถัง (เรียงตามลำดับ INSERT ด้านล่าง)
@@ -155,17 +156,18 @@ export const orderRepository = {
                 item.product_name,      // $9: product_name_snapshot (เช็คชื่อเต็มใน DB ให้ชัวร์)
                 lineTotal,               // $10: net_total
                 paymentMethod,
-                shippingMethod
+                shippingMethod,
+                shippingCost
             );
 
-            paramIndex += 12;// ขยับ Index ทีละ 10 ช่อง
+            paramIndex += 13;// ขยับ Index ทีละ 10 ช่อง
         });
 
         const sql = `
             INSERT INTO ${tableName} (
                 order_id, user_id, product_variants_id, price_snapshot, quantity, 
                 address, receiver_name, receiver_phone, product_name_snapshot, net_total, 
-                payment_method, shipping_method, ordered_at
+                payment_method, shipping_method, shipping_cost, ordered_at
             )
             VALUES ${placeholders.join(', ')}
         `;

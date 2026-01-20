@@ -9,6 +9,7 @@ export interface CreateOrderPayload {
     items: OrderItemInput[];
     paymentMethod: string;
     shippingMethod: string;
+    shippingCost: number;
     cartItemIds?: number[];
 }
 // ของ 1 ชิ้น

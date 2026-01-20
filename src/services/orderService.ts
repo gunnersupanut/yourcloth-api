@@ -99,7 +99,7 @@ export const orderService = {
         return groupedOrders;
     },
     createOrder: async (userId: number, data: CreateOrderPayload) => {
-        const { addressId, items, paymentMethod, shippingMethod, cartItemIds } = data;
+        const { addressId, items, paymentMethod, shippingMethod, shippingCost, cartItemIds } = data;
         const client = await pool.connect();
 
         try {
@@ -167,8 +167,9 @@ export const orderService = {
                 addressPayload,   // Parameter 4: Address Data
                 paymentMethod,     // Parameter 5: จ่ายไง 
                 shippingMethod,    // Parameter 6: ส่งไง 
-                readyItems,        // Parameter 7: Items
-                client             // Parameter 8: Client
+                shippingCost,      // Parameter 7: ค่าส่ง
+                readyItems,        // Parameter 8: Items
+                client             // Parameter 9: Client
             );
 
             // ตัด Stock ตรงนี
