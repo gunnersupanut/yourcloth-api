@@ -17,6 +17,8 @@ export interface OrderHistoryItem {
     quantity: number;
     price: number;
     image: string;
+    description: string;
+    lineTotal: number;
 }
 export interface OrderReceiver {
     name: string;

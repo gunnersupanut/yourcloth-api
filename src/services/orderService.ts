@@ -19,7 +19,6 @@ export const orderService = {
         // ประกอบร่าง (Data Transformation)
         // ข้อมูล Header (ชื่อ, ที่อยู่, สถานะ) เอามาจากแถวแรกก็พอ (เพราะมันเหมือนกันทุกแถว)
         const firstRow = rows[0];
-
         // คำนวณราคารวมทั้งบิล (Sum net_total ของทุกแถว)
         const grandTotal = rows.reduce((sum, row) => sum + Number(row.net_total), 0);
 
@@ -27,7 +26,10 @@ export const orderService = {
             orderId: firstRow.order_id,
             status: firstRow.status,
             orderedAt: firstRow.ordered_at,
-
+            shippingCost: firstRow.shipping_cost,
+            // สรุปยอดเงิน
+            totalAmount: grandTotal,
+            itemCount: rows.length,
             // ข้อมูลผู้รับ
             receiver: {
                 name: firstRow.receiver_name,
@@ -37,15 +39,15 @@ export const orderService = {
 
             // รายการสินค้า (Loop เอาเฉพาะข้อมูลสินค้าออกมา)
             items: rows.map((row: any) => ({
-                productName: row.product_name_snapshot,
+                name: row.product_name_snapshot,
+                description: row.description,
                 price: Number(row.price_snapshot),
                 quantity: row.quantity,
-                lineTotal: Number(row.net_total)
-            })),
+                lineTotal: Number(row.net_total),
+                image: row.image_url
+            }))
 
-            // สรุปยอดเงิน
-            totalAmount: grandTotal,
-            itemCount: rows.length
+
         };
 
         return orderData;
@@ -65,6 +67,7 @@ export const orderService = {
                     status: row.status,
                     orderedAt: row.ordered_at,
                     totalAmount: 0,
+                    shippingCost: row.shipping_cost,
                     receiver: {
                         name: row.receiver_name,
                         phone: row.receiver_phone,
@@ -82,9 +85,12 @@ export const orderService = {
             // ยัดสินค้าลงใน items ของ Order นั้นๆ
             order.items.push({
                 name: row.product_name_snapshot,
+                description: row.description,
                 quantity: row.quantity,
                 price: Number(row.price_snapshot),
-                image: row.image_url
+                lineTotal: Number(row.net_total),
+                image: row.image_url,
+
             });
 
             return acc;

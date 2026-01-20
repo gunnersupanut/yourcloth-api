@@ -9,7 +9,7 @@ export const orderRepository = {
         // payment_method, shipping_method อย่าลืม select มาด้วยถ้าจะใช้
         const fields = `
             order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id,
-            product_name_snapshot, quantity, price_snapshot,
+            product_name_snapshot, quantity, price_snapshot,shipping_cost,
             ordered_at, payment_method, shipping_method
         `;
 
@@ -31,7 +31,8 @@ export const orderRepository = {
         )
         SELECT 
             ao.*,
-            p.image_url
+            p.image_url,
+            p.description
         FROM all_orders ao
         LEFT JOIN product_variants pv ON ao.product_variants_id = pv.id
         LEFT JOIN products p ON pv.product_id = p.id
@@ -44,11 +45,12 @@ export const orderRepository = {
     findOrderById: async (orderId: number) => {
         // Select Column ที่จำเป็นออกมาให้หมด 
         const fields = `
-            order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id,
+            order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id, shipping_cost,
             product_name_snapshot, quantity, price_snapshot, ordered_at
         `;
 
         const sql = `
+        WITH all_orders AS (
             SELECT ${fields}, 'PENDING' as status FROM order_pending WHERE order_id = $1
             UNION ALL
             SELECT ${fields}, 'INSPECTING' as status FROM order_inspecting WHERE order_id = $1
@@ -60,7 +62,16 @@ export const orderRepository = {
             SELECT ${fields}, 'COMPLETE' as status FROM order_complete WHERE order_id = $1
             UNION ALL
             SELECT ${fields}, 'CANCEL' as status FROM order_cancel WHERE order_id = $1
-        `;
+        )
+        SELECT 
+            ao.*,
+            p.image_url,
+            p.description
+        FROM all_orders ao
+        LEFT JOIN product_variants pv ON ao.product_variants_id = pv.id
+        LEFT JOIN products p ON pv.product_id = p.id
+            ORDER BY ordered_at DESC;
+            `;
 
         const result = await pool.query(sql, [orderId]);
 
@@ -166,7 +177,7 @@ export const orderRepository = {
 
         // แปลงเป็น int ส่งกลับไป (DB มันส่งมาเป็น string สำหรับ bigint)
         return parseInt(result.rows[0].id);
-    }, 
+    },
     createOrderLog: async (
         orderId: number,
         actionType: string,   // e.g., 'ORDER_CREATED', 'PAYMENT_UPLOADED'
