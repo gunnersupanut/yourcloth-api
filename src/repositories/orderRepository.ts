@@ -47,7 +47,7 @@ export const orderRepository = {
         // Select Column ที่จำเป็นออกมาให้หมด 
         const fields = `
             order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id, shipping_cost,
-            product_name_snapshot, quantity, price_snapshot,payment_method, shipping_method ordered_at
+            product_name_snapshot, quantity, price_snapshot,payment_method, shipping_method, ordered_at
         `;
 
         const sql = `
@@ -110,6 +110,7 @@ export const orderRepository = {
         shippingMethod: string,
         shippingCost: number,
         itemsWithDetails: any[],
+        orderAt: Date,
         client: PoolClient
     ) => {
         // Security Guard: Whitelist (กัน SQL Injection)
@@ -141,7 +142,7 @@ export const orderRepository = {
             placeholders.push(`(
                 $${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, 
                 $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, 
-                $${paramIndex + 10}, $${paramIndex + 11},$${paramIndex + 12}, NOW()
+                $${paramIndex + 10}, $${paramIndex + 11},$${paramIndex + 12} ,$${paramIndex + 13}
             )`);
 
             // ยัดค่าลงถัง (เรียงตามลำดับ INSERT ด้านล่าง)
@@ -158,7 +159,8 @@ export const orderRepository = {
                 lineTotal,               // $10: net_total
                 paymentMethod,
                 shippingMethod,
-                shippingCost
+                shippingCost,
+                orderAt
             );
 
             paramIndex += 13;// ขยับ Index ทีละ 10 ช่อง

@@ -33,7 +33,7 @@ export const adminLoginController = async (
         res.status(200).json({
             message: 'Admin Login Complete.',
             token: result.token,
-            admin: {                 // 👇 เพิ่มตรงนี้ Frontend จะรักนายมาก
+            admin: {                 
                 id: result.id,
                 name: result.name,
                 role: 'ADMIN'

@@ -1,9 +1,9 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { productService } from "../services/productService";
 import { AppError } from "../utils/AppError";
 
 
-export const getAllProductController = async (req: Request, res: Response) => {
+export const getAllProductController = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const result = await productService.getAll();
         res.status(200).json({
@@ -11,15 +11,7 @@ export const getAllProductController = async (req: Request, res: Response) => {
             result: result
         })
     } catch (error) {
-        // เช็คมันคือ Error Object ไหม
-        if (error instanceof Error) {
-            console.log('[Get All Product] Error:', error)
-        } else {
-            // ถ้ามันเป็นอย่างอื่นที่โยนมา
-            console.error('[Get All Product]: Unknown error', error);
-        }
-
-        res.status(500).json({ error: "Get All Product Fail." })
+        next(error);
     }
 }
 

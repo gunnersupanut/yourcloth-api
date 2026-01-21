@@ -25,8 +25,10 @@ export const orderService = {
         const orderData = {
             orderId: firstRow.order_id,
             status: firstRow.status,
-            orderedAt: firstRow.ordered_at,
             shippingCost: firstRow.shipping_cost,
+            paymenMethod: firstRow.paymen_method,
+            shippingMethod: firstRow.shipping_method,
+            orderAt: firstRow.order_at,
             // สรุปยอดเงิน
             totalAmount: grandTotal,
             itemCount: rows.length,
@@ -53,7 +55,7 @@ export const orderService = {
         return orderData;
     },
     getAllOrders: async (userId: number): Promise<OrderHistoryEntry[]> => {
-        // ดึงข้อมูลดิบ
+        // c
         const rawRows = await orderRepository.findAllOrdersByUserId(userId);
         //  จัดกลุ่มตาม order_id 
         const groupedOrders = rawRows.reduce((acc: any[], row: any) => {
@@ -65,9 +67,11 @@ export const orderService = {
                 order = {
                     orderId: row.order_id,
                     status: row.status,
-                    orderedAt: row.ordered_at,
                     totalAmount: 0,
                     shippingCost: row.shipping_cost,
+                    shippingMethod: row.shipping_method,
+                    paymentMethod: row.paymen_method,
+                    orderAt: row.order_at,
                     receiver: {
                         name: row.receiver_name,
                         phone: row.receiver_phone,
@@ -169,7 +173,8 @@ export const orderService = {
                 shippingMethod,    // Parameter 6: ส่งไง 
                 shippingCost,      // Parameter 7: ค่าส่ง
                 readyItems,        // Parameter 8: Items
-                client             // Parameter 9: Client
+                new Date(),             // Parameter 9: OrderAt
+                client             // Parameter 10: Client
             );
 
             // ตัด Stock ตรงนี
@@ -209,6 +214,7 @@ export const orderService = {
             if (!orderDetail || orderDetail.length === 0) throw new AppError(`Order not found`, 400);
             // ---จัดรูป order ใหม่
             const header = orderDetail[0];
+
             // จัดรูป address
             const addressPayload = {
                 recipient_name: header.receiver_name,
@@ -217,7 +223,7 @@ export const orderService = {
             };
             // จัดรูป items
             const readyItems = orderDetail.map(row => ({
-                product_name: row.product_name,
+                product_name: row.product_name_snapshot,
                 variant_id: row.product_variants_id,
                 quantity: row.quantity,
                 price_snapshot: row.price_snapshot
@@ -236,7 +242,8 @@ export const orderService = {
                 header.shipping_method,    // Parameter 6: ส่งไง 
                 header.shipping_cost,      // Parameter 7: ค่าส่ง
                 readyItems,        // Parameter 8: Items
-                client             // Parameter 9: Client
+                header.ordered_at,   // Parameter 9: OrderAt
+                client             // Parameter 10: Client
             );
             // สร้าง order slips
             await orderRepository.createOrderSlips(orderId, imageObj, client)
