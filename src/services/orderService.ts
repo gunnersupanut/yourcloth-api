@@ -1,7 +1,7 @@
 import pool from '../config/db';
 import { orderRepository } from '../repositories/orderRepository';
 import { addressRepository } from '../repositories/addressRepository';
-import { CreateOrderPayload, OrderHistoryEntry } from '../type/orderTypes';
+import { CreateOrderPayload, ImageObj, OrderHistoryEntry } from '../type/orderTypes';
 import { AppError } from '../utils/AppError';
 import { productRepository } from '../repositories/productRepository';
 import { cartService } from './cartService';
@@ -98,7 +98,7 @@ export const orderService = {
 
         return groupedOrders;
     },
-    createOrder: async (userId: number, data: CreateOrderPayload) => {
+    createOrder: async (userId: number, userName: string, data: CreateOrderPayload) => {
         const { addressId, items, paymentMethod, shippingMethod, shippingCost, cartItemIds } = data;
         const client = await pool.connect();
 
@@ -143,7 +143,7 @@ export const orderService = {
                     : variant.base_name;
                 // เตรียม Object ให้ตรงกับที่ Repo ต้องการ
                 readyItems.push({
-                    variantId: item.variantId,
+                    variant_id: item.variantId,
                     quantity: item.quantity,
                     price_snapshot: variant.price,
                     product_name: fullProductName
@@ -179,7 +179,7 @@ export const orderService = {
             await orderRepository.createOrderLog(
                 orderGroupId,              // เลข Order ID
                 'ORDER_CREATED',           // Action Type
-                addressPayload.recipient_name, // Actor (เอาชื่อคนรับ หรือ username จาก token ก็ได้)
+                `USER ${userName}`, // Actor (เอาชื่อคนรับ หรือ username จาก token ก็ได้)
                 `User created order via Checkout (Total: ${grandTotal} THB)`, // Description
                 client                     // ส่ง client ตัวเดิมไป (ให้มัน Commit พร้อมกัน)
             );
@@ -199,4 +199,71 @@ export const orderService = {
             client.release();
         }
     },
+    moveToInspecting: async (orderId: number, userId: number, userName: string, imageObj: ImageObj) => {
+        const client = await pool.connect();
+        try {
+            // เปิด Transaction
+            await client.query('BEGIN');
+            // ---ดึง order จาก order_pending
+            const orderDetail = await orderRepository.findOrderById(orderId);
+            if (!orderDetail || orderDetail.length === 0) throw new AppError(`Order not found`, 400);
+            // ---จัดรูป order ใหม่
+            const header = orderDetail[0];
+            console.log("header", header)
+            // จัดรูป address
+            const addressPayload = {
+                recipient_name: header.receiver_name,
+                phone: header.receiver_phone,
+                address: header.address
+            };
+            // จัดรูป items
+            const readyItems = orderDetail.map(row => ({
+                product_name: row.product_name,
+                variant_id: row.product_variants_id,
+                quantity: row.quantity,
+                price_snapshot: row.price_snapshot
+            }));
+            // ราคารวม
+            const grandTotal = orderDetail.reduce((sum, item) => {
+                return sum + Number(item.net_total); // ใส่ Number() ดักไว้ ผื่อ DB ส่งมาเป็น String
+            }, 0);
+            // ---Bulk Insert ลง order_inspecting
+            await orderRepository.createOrderGenericBulk(
+                'order_inspecting',   // Parameter 1: ชื่อตาราง
+                header.order_id,      // Parameter 2: ID
+                header.user_id,            // Parameter 3: User
+                addressPayload,   // Parameter 4: Address Data
+                header.payment_method,     // Parameter 5: จ่ายไง 
+                header.shipping_method,    // Parameter 6: ส่งไง 
+                header.shipping_cost,      // Parameter 7: ค่าส่ง
+                readyItems,        // Parameter 8: Items
+                client             // Parameter 9: Client
+            );
+            // สร้าง order slips
+            console.log("Immage Obj = ", imageObj)
+            await orderRepository.createOrderSlips(orderId, imageObj, client)
+            // สร้าง order logs
+            await orderRepository.createOrderLog(
+                orderId,              // เลข Order ID
+                'ORDER_PAID',           // Action Type
+                `USER ${userName}`, // Actor (เอาชื่อคนรับ หรือ username จาก token ก็ได้)
+                `User Pay via (Total: ${grandTotal} THB)`, // Description
+                client                     // ส่ง client ตัวเดิมไป (ให้มัน Commit พร้อมกัน)
+            );
+            // ลบ order ออกจาก order_pending
+            await orderRepository.deleteOrderGeneric(
+                "order_pending",
+                orderId,
+                userId,
+                client
+            )
+            // เซฟทุกอย่างที่ทำ
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
 };

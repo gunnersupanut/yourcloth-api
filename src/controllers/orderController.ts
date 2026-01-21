@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { orderService } from '../services/orderService';
-import { CreateOrderPayload } from '../type/orderTypes';
+import { CreateOrderPayload, MoveToInspectingPayload } from '../type/orderTypes';
 import { CustomJwtPayload } from '../type/jwtType';
 import { AppError } from '../utils/AppError';
 
@@ -11,7 +11,6 @@ export const getAllOrdersController = async (
 ) => {
     try {
         const userId = (req.user as CustomJwtPayload).id;
-
         // เรียก Service 
         const orders = await orderService.getAllOrders(userId);
 
@@ -50,6 +49,7 @@ export const createOrderController = async (
 ) => {
     try {
         const userId = (req.user as CustomJwtPayload).id;
+        const userName = (req.user as CustomJwtPayload).username;
         const { addressId, items, paymentMethod, shippingMethod, shippingCost, cartItemIds } = req.body;
 
         // Validation 
@@ -58,10 +58,49 @@ export const createOrderController = async (
         }
 
         // เรียก Service
-        const result = await orderService.createOrder(userId, { addressId, items, paymentMethod, shippingMethod, shippingCost, cartItemIds });
+        const result = await orderService.createOrder(userId, userName, { addressId, items, paymentMethod, shippingMethod, shippingCost, cartItemIds });
 
         res.status(201).json({
             message: "Order created successfully!",
+            data: result
+        });
+
+    } catch (error: any) {
+        // เช็คด้วย instanceof
+        if (error instanceof AppError) {
+            return res.status(error.statusCode).json({
+                message: error.message,
+                data: error.data
+            });
+        }
+
+        console.error(error);
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+};
+export const moveOrderToInspectingController = async (
+    req: Request<{ orderId: string }, unknown, MoveToInspectingPayload>,
+    res: Response
+) => {
+    try {
+        const userId = (req.user as CustomJwtPayload).id;
+        const userName = (req.user as CustomJwtPayload).username;
+        const orderId = Number(req.params.orderId);
+        const { imageObj } = req.body;
+
+        // Validation 
+        if (isNaN(orderId)) {
+            throw new AppError("Invalid Order ID", 400);
+        }
+        if (!imageObj) {
+            throw new AppError("Invalid data don't have slip image.", 400);
+        }
+
+        // เรียก Service
+        const result = await orderService.moveToInspecting(orderId, userId, userName, imageObj);
+
+        res.status(200).json({
+            message: "Move order to inspecting successfully!",
             data: result
         });
 

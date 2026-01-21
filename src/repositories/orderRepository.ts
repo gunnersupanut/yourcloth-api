@@ -1,6 +1,7 @@
 import pool from '../config/db';
 import { PoolClient } from 'pg';
 import { AppError } from '../utils/AppError';
+import { ImageObj } from '../type/orderTypes';
 
 export const orderRepository = {
     // หา order
@@ -46,7 +47,7 @@ export const orderRepository = {
         // Select Column ที่จำเป็นออกมาให้หมด 
         const fields = `
             order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id, shipping_cost,
-            product_name_snapshot, quantity, price_snapshot, ordered_at
+            product_name_snapshot, quantity, price_snapshot,payment_method, shipping_method ordered_at
         `;
 
         const sql = `
@@ -147,7 +148,7 @@ export const orderRepository = {
             values.push(
                 orderGroupId,           // $1: order_id
                 userId,                 // $2: user_id
-                item.variantId,         // $3: product_variants_id
+                item.variant_id,         // $3: product_variants_id
                 item.price_snapshot,    // $4: price_snapshot
                 item.quantity,          // $5: quantity
                 address,                // $6: address (text)
@@ -173,6 +174,29 @@ export const orderRepository = {
         `;
         await client.query(sql, values);
     },
+    deleteOrderGeneric: async (tableName: string,
+        orderGroupId: number, userId: number, client: PoolClient) => {
+        // Security Guard: Whitelist (กัน SQL Injection)
+        const allowedTables = [
+            'order_pending',
+            'order_inspecting',
+            'order_packing',
+            'order_shipping',
+            'order_complete',
+            'order_cancel'
+        ];
+        if (!allowedTables.includes(tableName)) {
+            throw new AppError(`Table '${tableName}' is not allowed!`, 400);
+        }
+        const sql = `
+        DELETE FROM ${tableName}
+        WHERE order_id = $1
+        AND user_id = $2         
+        RETURNING *;
+        `
+        const result = await client.query(sql, [orderGroupId, userId]);
+        return result.rows
+    },
     getNextOrderGroupId: async (client: PoolClient) => {
         const sql = "SELECT nextval('order_group_seq') as id";
         const result = await client.query(sql);
@@ -193,4 +217,12 @@ export const orderRepository = {
         `;
         await client.query(sql, [orderId, actionType, actorName, description]);
     },
+    createOrderSlips: async (orderId: number, imageObj: ImageObj, client: PoolClient) => {
+        const sql = `
+            INSERT INTO order_slips (order_id, image_url, file_path)
+            VALUES ($1, $2, $3)
+            RETURNING *;
+        `;
+        await client.query(sql, [orderId, imageObj.imageUrl, imageObj.filePath]);
+    }
 };

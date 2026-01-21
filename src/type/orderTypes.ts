@@ -35,3 +35,11 @@ export interface OrderHistoryEntry {
     receiver: OrderReceiver; //  (1 ออเดอร์ มี 1 ที่อยู่)
     items: OrderHistoryItem[];
 }
+export interface MoveToInspectingPayload {
+    imageObj: ImageObj
+}
+// รูป
+export interface ImageObj {
+    imageUrl: string;
+    filePath: string
+}
