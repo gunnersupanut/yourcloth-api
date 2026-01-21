@@ -2,7 +2,7 @@ export interface GroupedOrder {
     order_id: number;
     user_id: number;
     status: string;
-    total_price: string;
+    total_price: number;
     slip: {
         url: string | null;
         path: string | null;
