@@ -1,7 +1,8 @@
 import express from 'express';
 import { checkResetPasswordTokenController, forgotPasswordController, loginController, registerController, resentEmailController, resetPasswordContoller, verifyController } from '../controllers/authController';
-const router = express.Router();
 import rateLimit from 'express-rate-limit';
+const router = express.Router();
+
 // กัน spam email
 const resendEmailLimiter = rateLimit({
     windowMs: 60 * 1000, // ภายใน 1 นาที (60,000 ms)
@@ -27,7 +28,7 @@ router.post('/login', loginController);
 router.get('/verify-email', verifyController)
 
 router.post('/resent-email', resendEmailLimiter, resentEmailController)
-router.post('/forgotpassword',resendEmailLimiter, forgotPasswordController)
+router.post('/forgotpassword', resendEmailLimiter, forgotPasswordController)
 router.get('/checkresetpasswordtoken', checkResetPasswordTokenController)
 router.post('/resetpassword', resetPasswordContoller)
 

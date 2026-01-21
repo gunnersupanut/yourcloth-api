@@ -209,7 +209,6 @@ export const orderService = {
             if (!orderDetail || orderDetail.length === 0) throw new AppError(`Order not found`, 400);
             // ---จัดรูป order ใหม่
             const header = orderDetail[0];
-            console.log("header", header)
             // จัดรูป address
             const addressPayload = {
                 recipient_name: header.receiver_name,
@@ -240,7 +239,6 @@ export const orderService = {
                 client             // Parameter 9: Client
             );
             // สร้าง order slips
-            console.log("Immage Obj = ", imageObj)
             await orderRepository.createOrderSlips(orderId, imageObj, client)
             // สร้าง order logs
             await orderRepository.createOrderLog(

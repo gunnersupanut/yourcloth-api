@@ -38,6 +38,9 @@ import orderRouter from './routes/order'
 import { errorHandler } from './middleware/errorHandler';
 app.use("/api/v1/orders", orderRouter)
 
+// **--Admin--**
+import adminAuthRouter from './routes/adminAuthRouter'
+app.use("/api/v1/admin/auth", adminAuthRouter)
 // Global Hanler Error
 app.use(errorHandler);
 // สั่งให้ Server มันเริ่มฟัง
