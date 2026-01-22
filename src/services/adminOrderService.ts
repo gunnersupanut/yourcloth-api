@@ -1,5 +1,4 @@
 import { adminOrderRepository } from '../repositories/adminOrderRepository'
-import { GroupedOrder } from '../type/adminOrderTypes';
 export const adminOrderService = {
     getInspectingOrders: async () => {
         // 1. ดึงข้อมูลดิบ
@@ -68,5 +67,8 @@ export const adminOrderService = {
         }, []);
 
         return groupedOrders;
+    },
+    moveOrederToPacking: async (orderId: number, userId: number, userName: string) => {
+
     }
 }

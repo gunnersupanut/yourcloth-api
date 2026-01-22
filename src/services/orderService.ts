@@ -204,7 +204,7 @@ export const orderService = {
             client.release();
         }
     },
-    moveToInspecting: async (orderId: number, userId: number, userName: string, imageObj: ImageObj) => {
+    moveToInspecting: async (orderId: number, userName: string, imageObj: ImageObj) => {
         const client = await pool.connect();
         try {
             // เปิด Transaction
@@ -259,7 +259,7 @@ export const orderService = {
             await orderRepository.deleteOrderGeneric(
                 "order_pending",
                 orderId,
-                userId,
+                header.user_id,
                 client
             )
             // เซฟทุกอย่างที่ทำ

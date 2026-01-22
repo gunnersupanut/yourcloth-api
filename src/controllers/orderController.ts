@@ -83,7 +83,6 @@ export const moveOrderToInspectingController = async (
     res: Response
 ) => {
     try {
-        const userId = (req.user as CustomJwtPayload).id;
         const userName = (req.user as CustomJwtPayload).username;
         const orderId = Number(req.params.orderId);
         const { imageObj } = req.body;
@@ -97,7 +96,7 @@ export const moveOrderToInspectingController = async (
         }
 
         // เรียก Service
-        const result = await orderService.moveToInspecting(orderId, userId, userName, imageObj);
+        const result = await orderService.moveToInspecting(orderId, userName, imageObj);
 
         res.status(200).json({
             message: "Move order to inspecting successfully!",
