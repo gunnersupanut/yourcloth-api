@@ -43,7 +43,7 @@ export const orderRepository = {
         const result = await pool.query(sql, [userId]);
         return result.rows;
     },
-    findOrderById: async (orderId: number) => {
+    findOrderById: async (orderId: number, client?: PoolClient) => {
         // Select Column ที่จำเป็นออกมาให้หมด 
         const fields = `
             order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id, shipping_cost,
@@ -73,8 +73,8 @@ export const orderRepository = {
         LEFT JOIN products p ON pv.product_id = p.id
             ORDER BY ordered_at DESC;
             `;
-
-        const result = await pool.query(sql, [orderId]);
+        const queryRunner = client || pool;
+        const result = await queryRunner.query(sql, [orderId]);
 
         return result.rows;
     },

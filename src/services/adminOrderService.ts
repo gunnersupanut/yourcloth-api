@@ -1,4 +1,8 @@
+import pool from '../config/db';
 import { adminOrderRepository } from '../repositories/adminOrderRepository'
+import { orderRepository } from '../repositories/orderRepository';
+import { CreateRejectionPayLoad } from '../type/adminOrderTypes';
+import { AppError } from '../utils/AppError';
 export const adminOrderService = {
     getInspectingOrders: async () => {
         // 1. ดึงข้อมูลดิบ
@@ -68,7 +72,144 @@ export const adminOrderService = {
 
         return groupedOrders;
     },
-    moveOrederToPacking: async (orderId: number, userId: number, userName: string) => {
+    moveOrderToPacking: async (orderId: number, adminName: string) => {
+        const client = await pool.connect();
+        try {
+            // เปิด Transaction
+            await client.query('BEGIN');
+            // ดึงข้อมูล Order ปัจจุบัน (จาก Inspecting)
+            const orderDetail = await orderRepository.findOrderById(orderId, client);
+            if (!orderDetail || orderDetail.length === 0) {
+                throw new AppError(`Order not found in Inspecting status`, 404);
+            }
+            if (orderDetail[0].status !== 'INSPECTING') {
+                throw new AppError('Order is not in inspecting status', 400);
+            }
+            // ---จัดรูป order ใหม่
+            const header = orderDetail[0];
 
+            // จัดรูป address
+            const addressPayload = {
+                recipient_name: header.receiver_name,
+                phone: header.receiver_phone,
+                address: header.address
+            };
+            // จัดรูป items
+            const readyItems = orderDetail.map(row => ({
+                product_name: row.product_name_snapshot,
+                variant_id: row.product_variants_id,
+                quantity: row.quantity,
+                price_snapshot: row.price_snapshot
+            }));
+            // ---Bulk Insert ลง order_packing
+            await orderRepository.createOrderGenericBulk(
+                'order_packing',   // Parameter 1: ชื่อตาราง
+                header.order_id,      // Parameter 2: ID
+                header.user_id,            // Parameter 3: User
+                addressPayload,   // Parameter 4: Address Data
+                header.payment_method,     // Parameter 5: จ่ายไง 
+                header.shipping_method,    // Parameter 6: ส่งไง 
+                header.shipping_cost,      // Parameter 7: ค่าส่ง
+                readyItems,        // Parameter 8: Items
+                header.ordered_at,   // Parameter 9: OrderAt
+                client             // Parameter 10: Client
+            );
+            // สร้าง Log
+            // สร้าง order logs
+            await orderRepository.createOrderLog(
+                orderId,              // เลข Order ID
+                'ORDER_APPROVE',           // Action Type
+                `ADMIN ${adminName}`, // Actor (เอาชื่อคนรับ หรือ username จาก token ก็ได้)
+                `Admin ${adminName} confirm payment waiting for packing order.`, // Description
+                client                     // ส่ง client ตัวเดิมไป (ให้มัน Commit พร้อมกัน)
+            );
+            // ลบ order ออกจาก order_inspecting
+            await orderRepository.deleteOrderGeneric(
+                "order_inspecting",
+                orderId,
+                header.user_id,
+                client
+            )
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    },
+    rejectPaymentToPending: async (orderId: number, adminName: string, reason: string) => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // ดึงข้อมูล Order ปัจจุบัน (จาก Inspecting)
+            const orderDetail = await orderRepository.findOrderById(orderId, client);
+            if (!orderDetail || orderDetail.length === 0) {
+                throw new AppError(`Order not found in Inspecting status`, 404);
+            }
+            if (orderDetail[0].status !== 'INSPECTING') {
+                throw new AppError('Order is not in inspecting status', 400);
+            }
+            // ---จัดรูปข้อมูล
+            const header = orderDetail[0];
+            // จัดรูปลงตาราง order_rejections
+            const rejectionPayload: CreateRejectionPayLoad = {
+                orderId,
+                userId: header.user_id,
+                reason,
+                adminName
+            }
+            // ---บันทึกเหตุผลลงตาราง order_rejections
+            await adminOrderRepository.createRejection(rejectionPayload, client)
+            // ---เตรียมย้ายกลับ Pending
+            // จัดรูป address
+            const addressPayload = {
+                recipient_name: header.receiver_name,
+                phone: header.receiver_phone,
+                address: header.address
+            };
+            // จัดรูป items
+            const readyItems = orderDetail.map(row => ({
+                product_name: row.product_name_snapshot,
+                variant_id: row.product_variants_id,
+                quantity: row.quantity,
+                price_snapshot: row.price_snapshot
+            }));
+            // Bulk Insert ลง order_pending
+            await orderRepository.createOrderGenericBulk(
+                'order_pending',   // Parameter 1: ชื่อตาราง
+                header.order_id,      // Parameter 2: ID
+                header.user_id,            // Parameter 3: User
+                addressPayload,   // Parameter 4: Address Data
+                header.payment_method,     // Parameter 5: จ่ายไง 
+                header.shipping_method,    // Parameter 6: ส่งไง 
+                header.shipping_cost,      // Parameter 7: ค่าส่ง
+                readyItems,        // Parameter 8: Items
+                header.ordered_at,   // Parameter 9: OrderAt
+                client             // Parameter 10: Client
+            );
+            // ---สร้าง Log
+            await orderRepository.createOrderLog(
+                orderId,
+                'ORDER_REJECTED',
+                `ADMIN ${adminName}`,
+                `Payment rejected. Reason: ${reason}`,
+                client
+            );
+            // ---ลบออกจาก Inspecting
+            await orderRepository.deleteOrderGeneric(
+                "order_inspecting",
+                orderId,
+                header.user_id,
+                client
+            );
+            // commit
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 }

@@ -17,3 +17,10 @@ export interface GroupedOrder {
         ordered: Date;
     }
 }
+
+export interface CreateRejectionPayLoad {
+    orderId: number;
+    userId: number;
+    reason: string;
+    adminName: string
+}

@@ -1,6 +1,7 @@
 import pool from '../config/db';
-import { PoolClient } from 'pg';
+import { Client, PoolClient } from 'pg';
 import { AppError } from '../utils/AppError';
+import { CreateRejectionPayLoad } from '../type/adminOrderTypes';
 
 export const adminOrderRepository = {
     // หา order
@@ -87,5 +88,18 @@ export const adminOrderRepository = {
     `;
         const result = await pool.query(sql);
         return result.rows;
+    },
+    createRejection: async (payload: CreateRejectionPayLoad, client: PoolClient) => {
+        const sql = `
+        INSERT INTO order_rejections (order_id, user_id, reason, rejected_by, created_at)
+                VALUES ($1, $2, $3, $4, NOW()) 
+        `;
+        const values = [
+            payload.orderId,
+            payload.userId,
+            payload.reason,
+            payload.adminName
+        ]
+        await client.query(sql, values)
     }
 };
