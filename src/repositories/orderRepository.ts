@@ -99,7 +99,6 @@ export const orderRepository = {
         const result = await pool.query(sql, [variantIds]);
         return result.rows;
     },
-
     // Bulk Insert ลง order_pending
     createOrderGenericBulk: async (
         tableName: string,
@@ -226,5 +225,16 @@ export const orderRepository = {
             RETURNING *;
         `;
         await client.query(sql, [orderId, imageObj.imageUrl, imageObj.filePath]);
+    },
+    findLatestRejectionByOrderId: async (orderId: number) => {
+        const sql = `
+        SELECT reason, created_at 
+        FROM order_rejections 
+        WHERE order_id = $1 
+        ORDER BY created_at DESC 
+        LIMIT 1
+    `;
+        const result = await pool.query(sql, [orderId]);
+        return result.rows[0] || null;
     }
 };

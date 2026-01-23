@@ -10,8 +10,7 @@ export const orderService = {
     getOrderDetails: async (orderId: number) => {
         // ไปหาจากทุกตาราง
         const rows = await orderRepository.findOrderById(orderId);
-
-        // า Array ว่างแปลว่าหาไม่เจอสักตาราง
+        // Array ว่างแปลว่าหาไม่เจอสักตาราง
         if (!rows || rows.length === 0) {
             throw new AppError("Order not found", 404);
         }
@@ -20,11 +19,23 @@ export const orderService = {
         // ข้อมูล Header (ชื่อ, ที่อยู่, สถานะ) เอามาจากแถวแรกก็พอ (เพราะมันเหมือนกันทุกแถว)
         const firstRow = rows[0];
         // คำนวณราคารวมทั้งบิล (Sum net_total ของทุกแถว)
-        const grandTotal = rows.reduce((sum, row) => sum + Number(row.net_total), 0);
 
+        const grandTotal = rows.reduce((sum, row) => sum + Number(row.net_total), 0);
+        // --- ดึงเหตุผลการปฏิเสธ ---
+        let rejectionReason = null;
+
+        // เช็คก่อนว่าสถานะเป็น PENDING ไหม? (ถ้าใช่ แปลว่าอาจจะโดนดีดกลับมา)
+        if (firstRow.status === 'PENDING') {
+            const latestRejection = await orderRepository.findLatestRejectionByOrderId(orderId);
+
+            if (latestRejection) {
+                rejectionReason = latestRejection.reason;
+            }
+        }
         const orderData = {
             orderId: firstRow.order_id,
             status: firstRow.status,
+            rejectionReason: rejectionReason,
             shippingCost: firstRow.shipping_cost,
             paymenMethod: firstRow.paymen_method,
             shippingMethod: firstRow.shipping_method,
