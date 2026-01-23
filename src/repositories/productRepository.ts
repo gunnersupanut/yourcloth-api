@@ -118,8 +118,8 @@ export const productRepository = {
             p.description,
             p.product_name,
             p.image_url,
-            s.name AS size_name,
-            c.name AS color_name
+            s.name AS size,
+            c.name AS color
         FROM product_variants v
         JOIN products p ON v.product_id = p.id
         LEFT JOIN sizes s ON v.size_id = s.id
