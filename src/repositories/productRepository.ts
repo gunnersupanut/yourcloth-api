@@ -22,18 +22,20 @@ export const productRepository = {
                 pd.image_url,
                 c.name AS category,
                 gd.name AS gender,
-                (
-                    SELECT JSON_AGG(DISTINCT cl.hex_code) 
-                    FROM product_variants pv
-                    JOIN colors AS cl ON pv.color_id = cl.id
-                    WHERE pv.product_id = pd.id 
-                ) AS available_colors_code,     
                  (
-                    SELECT JSON_AGG(DISTINCT cl.name) 
-                    FROM product_variants pv
-                    JOIN colors AS cl ON pv.color_id = cl.id
-                    WHERE pv.product_id = pd.id 
-                ) AS available_colors_name,
+            SELECT JSON_AGG(
+            json_build_object(
+            'name', sub.name, 
+            'code', sub.hex_code
+            )
+            )
+            FROM (
+            SELECT DISTINCT cl.name, cl.hex_code
+            FROM product_variants pv
+            JOIN colors AS cl ON pv.color_id = cl.id
+            WHERE pv.product_id = pd.id
+            ) sub
+            ) AS available_colors,
                 (
                 SELECT JSON_AGG(DISTINCT si.name)
                 FROM product_variants pv
@@ -64,17 +66,19 @@ export const productRepository = {
         c.name AS category,
         gd.name AS gender,
         (
-        SELECT JSON_AGG(DISTINCT cl.hex_code) 
+        SELECT JSON_AGG(
+        json_build_object(
+        'name', sub.name, 
+        'code', sub.hex_code
+        )
+        )
+        FROM (
+        SELECT DISTINCT cl.name, cl.hex_code
         FROM product_variants pv
         JOIN colors AS cl ON pv.color_id = cl.id
-        WHERE pv.product_id = pd.id 
-        ) AS available_colors_code,     
-        (
-        SELECT JSON_AGG(DISTINCT cl.name) 
-        FROM product_variants pv
-        JOIN colors AS cl ON pv.color_id = cl.id
-        WHERE pv.product_id = pd.id 
-        ) AS available_colors_name,
+        WHERE pv.product_id = pd.id
+        ) sub
+        ) AS available_colors,
         (
         SELECT JSON_AGG(DISTINCT si.name)
         FROM product_variants pv
