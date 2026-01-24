@@ -3,6 +3,7 @@ import { adminOrderRepository } from '../repositories/adminOrderRepository'
 import { orderRepository } from '../repositories/orderRepository';
 import { CreateParcelNumberPayLoad, CreateRejectionPayLoad, ShippingDetailPayload } from '../type/adminOrderTypes';
 import { AppError } from '../utils/AppError';
+import { deleteFileFromCloudinary } from '../utils/cloudinary';
 export const adminOrderService = {
     getInspectingOrders: async () => {
         // 1. ดึงข้อมูลดิบ
@@ -203,6 +204,16 @@ export const adminOrderService = {
                 header.user_id,
                 client
             );
+            //  ---ลบรูป slips เก่า
+            const deletedSlips = await orderRepository.deleteOrderSlips(orderId, client);
+            // เช็คว่าลบเจอไหม? (ถ้า deletedSlips มีของ = เคยมีสลิป)
+            if (deletedSlips && deletedSlips.length > 0) {
+                const slip = deletedSlips[0]; // เอาตัวแรกมา
+                // เอา file_path ไปลบรูปใน Cloud
+                if (slip.file_path) {
+                    deleteFileFromCloudinary(slip.file_path, 'image');
+                }
+            }
             // commit
             await client.query('COMMIT');
         } catch (error) {

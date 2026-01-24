@@ -236,5 +236,24 @@ export const orderRepository = {
     `;
         const result = await pool.query(sql, [orderId]);
         return result.rows[0] || null;
+    },
+    findOrderSlips: async (orderId: number, client: PoolClient) => {
+        const sql = `
+        SELECT image_url, file_path
+        FROM order_slips 
+        WHERE order_id = $1 
+        LIMIT 1
+    `;
+        const result = await client.query(sql, [orderId]);
+        return result.rows[0] || null;
+    },
+    deleteOrderSlips: async (orderId: number, client: PoolClient) => {
+        const sql = `
+        DELETE FROM order_slips
+        WHERE order_id = $1      
+        RETURNING *;
+    `;
+        const result = await client.query(sql, [orderId]);
+        return result.rows
     }
 };
