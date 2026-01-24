@@ -1,7 +1,7 @@
 import pool from '../config/db';
 import { adminOrderRepository } from '../repositories/adminOrderRepository'
 import { orderRepository } from '../repositories/orderRepository';
-import { CreateRejectionPayLoad } from '../type/adminOrderTypes';
+import { CreateParcelNumberPayLoad, CreateRejectionPayLoad, ShippingDetailPayload } from '../type/adminOrderTypes';
 import { AppError } from '../utils/AppError';
 export const adminOrderService = {
     getInspectingOrders: async () => {
@@ -199,6 +199,83 @@ export const adminOrderService = {
             // ---ลบออกจาก Inspecting
             await orderRepository.deleteOrderGeneric(
                 "order_inspecting",
+                orderId,
+                header.user_id,
+                client
+            );
+            // commit
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    },
+    moveOrderToShipping: async (orderId: number, adminName: string, shipping: ShippingDetailPayload) => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            // ดึงข้อมูล Order ปัจจุบัน (จาก PACKING)
+            const orderDetail = await orderRepository.findOrderById(orderId, client);
+            // เช็คข้อมูล
+            // ถ้าไม่เจอ
+            if (!orderDetail || orderDetail.length === 0) {
+                throw new AppError(`Order not found in Inspecting status`, 404);
+            }
+            // ถ้าเจอแต่ผิดสถานะ
+            if (orderDetail[0].status !== 'PACKING') {
+                throw new AppError('Order is not in packing status', 400);
+            }
+            // ---จัดรูปข้อมูล
+            const header = orderDetail[0];
+            // จัดรูปลงตาราง parcel_numbers
+            const pacelNumberPayload: CreateParcelNumberPayLoad = {
+                orderId,
+                userId: header.user_id,
+                shippingCarrier: shipping.shippingCarrier,
+                parcelNumber: shipping.parcelNumber
+            }
+            // บันทึกข้อมูลการจัดส่งลง parcel_numbers
+            await adminOrderRepository.createParcelNumber(pacelNumberPayload, client)
+            // ---เตรียมย้ายข้อมูลไป order_shipping
+            // จัดรูป address
+            const addressPayload = {
+                recipient_name: header.receiver_name,
+                phone: header.receiver_phone,
+                address: header.address
+            };
+            // จัดรูป items
+            const readyItems = orderDetail.map(row => ({
+                product_name: row.product_name_snapshot,
+                variant_id: row.product_variants_id,
+                quantity: row.quantity,
+                price_snapshot: row.price_snapshot
+            }));
+            // Bulk Insert ลง order_shipping
+            await orderRepository.createOrderGenericBulk(
+                'order_shipping',   // Parameter 1: ชื่อตาราง
+                header.order_id,      // Parameter 2: ID
+                header.user_id,            // Parameter 3: User
+                addressPayload,   // Parameter 4: Address Data
+                header.payment_method,     // Parameter 5: จ่ายไง 
+                header.shipping_method,    // Parameter 6: ส่งไง 
+                header.shipping_cost,      // Parameter 7: ค่าส่ง
+                readyItems,        // Parameter 8: Items
+                header.ordered_at,   // Parameter 9: OrderAt
+                client             // Parameter 10: Client
+            );
+            // ---สร้าง Log
+            await orderRepository.createOrderLog(
+                orderId,
+                'ORDER_SHIPPING',
+                `ADMIN ${adminName}`,
+                `Order is shipping by ${shipping.shippingCarrier},Parcel Number is ${shipping.parcelNumber}.`,
+                client
+            );
+            // ---ลบออกจาก order_packing
+            await orderRepository.deleteOrderGeneric(
+                "order_packing",
                 orderId,
                 header.user_id,
                 client

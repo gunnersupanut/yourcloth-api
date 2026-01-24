@@ -1,8 +1,8 @@
 import pool from '../config/db';
-import { Client, PoolClient } from 'pg';
+import { PoolClient } from 'pg';
 import { AppError } from '../utils/AppError';
-import { CreateRejectionPayLoad } from '../type/adminOrderTypes';
-
+import { CreateParcelNumberPayLoad, CreateRejectionPayLoad } from '../type/adminOrderTypes';
+import { toSnakeCase } from '../utils/dbHelper';
 export const adminOrderRepository = {
     // หา order
     findAllOrders: async (userId: number) => {
@@ -99,6 +99,19 @@ export const adminOrderRepository = {
             payload.userId,
             payload.reason,
             payload.adminName
+        ]
+        await client.query(sql, values)
+    },
+    createParcelNumber: async (payload: CreateParcelNumberPayLoad, client: PoolClient) => {
+        const sql = `
+        INSERT INTO parcel_numbers (order_id, user_id, shipping_carrier, parcel_number, created_at)
+                VALUES ($1, $2, $3, $4, NOW()) 
+        `;
+        const values = [
+            payload.orderId,
+            payload.userId,
+            payload.shippingCarrier,
+            payload.parcelNumber
         ]
         await client.query(sql, values)
     }

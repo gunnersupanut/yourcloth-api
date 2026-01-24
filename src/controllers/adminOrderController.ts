@@ -62,3 +62,29 @@ export const rejectPaymentController = async (req: Request, res: Response, next:
         next(error);
     }
 };
+
+export const shippingOrderController = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { orderId } = req.params;
+        const { shippingCarrier, parcelNumber } = req.body;
+        // ดึงชื่อ Admin จาก Token 
+        const adminName = (req.user as CustomAdminJwtPayload).username;
+        // validation ข้อมูล
+        if (!orderId) throw new AppError("Order ID is required", 400);
+        if (!shippingCarrier || !parcelNumber) throw new AppError("Rejection shipping carrier and parcel number is required", 400);
+        const shippingDetail = {
+            shippingCarrier, parcelNumber,
+        }
+        // เรียก Service 
+        await adminOrderService.moveOrderToShipping(Number(orderId), adminName, shippingDetail);
+        res.status(200).json({
+            message: "Order is shipping. Order moved to SHIPPING.",
+            actionBy: adminName,
+            shippingCarrier: shippingCarrier,
+            parcelNumber: parcelNumber,
+            orderId: orderId
+        });
+    } catch (error) {
+        next(error);
+    }
+};
