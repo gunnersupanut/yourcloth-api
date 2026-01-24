@@ -24,3 +24,14 @@ export interface CreateRejectionPayLoad {
     reason: string;
     adminName: string
 }
+
+export interface ShippingDetailPayload {
+    shippingCarrier: string,
+    parcelNumber: string
+}
+export interface CreateParcelNumberPayLoad {
+    orderId: number;
+    userId: number;
+    shippingCarrier: string,
+    parcelNumber: string
+}
