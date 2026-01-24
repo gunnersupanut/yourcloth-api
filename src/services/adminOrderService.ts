@@ -80,7 +80,7 @@ export const adminOrderService = {
             // ดึงข้อมูล Order ปัจจุบัน (จาก Inspecting)
             const orderDetail = await orderRepository.findOrderById(orderId, client);
             if (!orderDetail || orderDetail.length === 0) {
-                throw new AppError(`Order not found in Inspecting status`, 404);
+                throw new AppError(`Order not found in inspecting status`, 404);
             }
             if (orderDetail[0].status !== 'INSPECTING') {
                 throw new AppError('Order is not in inspecting status', 400);
@@ -145,7 +145,7 @@ export const adminOrderService = {
             // ดึงข้อมูล Order ปัจจุบัน (จาก Inspecting)
             const orderDetail = await orderRepository.findOrderById(orderId, client);
             if (!orderDetail || orderDetail.length === 0) {
-                throw new AppError(`Order not found in Inspecting status`, 404);
+                throw new AppError(`Order not found in inspecting status`, 404);
             }
             if (orderDetail[0].status !== 'INSPECTING') {
                 throw new AppError('Order is not in inspecting status', 400);
@@ -193,7 +193,7 @@ export const adminOrderService = {
                 orderId,
                 'ORDER_REJECTED',
                 `ADMIN ${adminName}`,
-                `Payment rejected. Reason: ${reason}`,
+                `Payment rejected, Reason: ${reason}`,
                 client
             );
             // ---ลบออกจาก Inspecting
@@ -221,7 +221,7 @@ export const adminOrderService = {
             // เช็คข้อมูล
             // ถ้าไม่เจอ
             if (!orderDetail || orderDetail.length === 0) {
-                throw new AppError(`Order not found in Inspecting status`, 404);
+                throw new AppError(`Order not found in packing status`, 404);
             }
             // ถ้าเจอแต่ผิดสถานะ
             if (orderDetail[0].status !== 'PACKING') {

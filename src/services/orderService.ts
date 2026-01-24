@@ -118,6 +118,8 @@ export const orderService = {
         const client = await pool.connect();
 
         try {
+            // เปิด Transaction
+            await client.query('BEGIN');
             // ---ดึง Address Snapshot (ต้องเป็นของ User คนนี้เท่านั้น)
             const addressList = await addressRepository.findAddressByUserId(userId);
             const selectedAddress = addressList.find((addr: any) => addr.id === Number(addressId));
@@ -171,9 +173,6 @@ export const orderService = {
             // ใช้ Unix Timestamp (วินาที) + Random 3 หลัก เพื่อไม่ให้เกิน limit
             const orderGroupId = await orderRepository.getNextOrderGroupId(client);
 
-            // เปิด Transaction
-            await client.query('BEGIN');
-
             // Bulk Insert ลง order_pending
             await orderRepository.createOrderGenericBulk(
                 'order_pending',   // Parameter 1: ชื่อตาราง
@@ -222,7 +221,15 @@ export const orderService = {
             await client.query('BEGIN');
             // ---ดึง order จาก order_pending
             const orderDetail = await orderRepository.findOrderById(orderId);
-            if (!orderDetail || orderDetail.length === 0) throw new AppError(`Order not found`, 400);
+            // เช็คข้อมูล
+            // ถ้าไม่เจอ
+            if (!orderDetail || orderDetail.length === 0) {
+                throw new AppError(`Order not found in pending status`, 404);
+            }
+            // ถ้าเจอแต่ผิดสถานะ
+            if (orderDetail[0].status !== 'PENDING') {
+                throw new AppError('Order is not in pending status', 400);
+            };
             // ---จัดรูป order ใหม่
             const header = orderDetail[0];
 
@@ -263,12 +270,84 @@ export const orderService = {
                 orderId,              // เลข Order ID
                 'ORDER_PAID',           // Action Type
                 `USER ${userName}`, // Actor (เอาชื่อคนรับ หรือ username จาก token ก็ได้)
-                `User Pay via (Total: ${grandTotal} THB)`, // Description
+                `User pay via (Total: ${grandTotal} THB)`, // Description
                 client                     // ส่ง client ตัวเดิมไป (ให้มัน Commit พร้อมกัน)
             );
             // ลบ order ออกจาก order_pending
             await orderRepository.deleteOrderGeneric(
                 "order_pending",
+                orderId,
+                header.user_id,
+                client
+            )
+            // เซฟทุกอย่างที่ทำ
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    },
+    moveToComplete: async (orderId: number, userName: string) => {
+        const client = await pool.connect();
+        try {
+            // เปิด Transaction
+            await client.query('BEGIN');
+            // ---ดึง order จาก order_shipping
+            const orderDetail = await orderRepository.findOrderById(orderId);
+            // เช็คข้อมูล
+            // ถ้าไม่เจอ
+            if (!orderDetail || orderDetail.length === 0) {
+                throw new AppError(`Order not found in shipping status`, 404);
+            }
+            // ถ้าเจอแต่ผิดสถานะ
+            if (orderDetail[0].status !== 'SHIPPING') {
+                throw new AppError('Order is not in shipping status', 400);
+            };
+            // ---จัดรูป order ใหม่
+            const header = orderDetail[0];
+            // จัดรูป address
+            const addressPayload = {
+                recipient_name: header.receiver_name,
+                phone: header.receiver_phone,
+                address: header.address
+            };
+            // จัดรูป items
+            const readyItems = orderDetail.map(row => ({
+                product_name: row.product_name_snapshot,
+                variant_id: row.product_variants_id,
+                quantity: row.quantity,
+                price_snapshot: row.price_snapshot
+            }));
+            // ราคารวม
+            // const grandTotal = orderDetail.reduce((sum, item) => {
+            //     return sum + Number(item.net_total); // ใส่ Number() ดักไว้ ผื่อ DB ส่งมาเป็น String
+            // }, 0);
+            // ---Bulk Insert ลง order_inspecting
+            await orderRepository.createOrderGenericBulk(
+                'order_complete',   // Parameter 1: ชื่อตาราง
+                header.order_id,      // Parameter 2: ID
+                header.user_id,            // Parameter 3: User
+                addressPayload,   // Parameter 4: Address Data
+                header.payment_method,     // Parameter 5: จ่ายไง 
+                header.shipping_method,    // Parameter 6: ส่งไง 
+                header.shipping_cost,      // Parameter 7: ค่าส่ง
+                readyItems,        // Parameter 8: Items
+                header.ordered_at,   // Parameter 9: OrderAt
+                client             // Parameter 10: Client
+            );
+            // สร้าง order logs
+            await orderRepository.createOrderLog(
+                orderId,              // เลข Order ID
+                'ORDER_COMPLETE',           // Action Type
+                `USER ${userName}`, // Actor (เอาชื่อคนรับ หรือ username จาก token ก็ได้)
+                `User comfirm received order.`, // Description
+                client                     // ส่ง client ตัวเดิมไป (ให้มัน Commit พร้อมกัน)
+            );
+            // ลบ order ออกจาก order_shipping
+            await orderRepository.deleteOrderGeneric(
+                "order_shipping",
                 orderId,
                 header.user_id,
                 client

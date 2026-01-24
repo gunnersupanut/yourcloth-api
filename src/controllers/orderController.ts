@@ -96,11 +96,10 @@ export const moveOrderToInspectingController = async (
         }
 
         // เรียก Service
-        const result = await orderService.moveToInspecting(orderId, userName, imageObj);
+        await orderService.moveToInspecting(orderId, userName, imageObj);
 
         res.status(200).json({
             message: "Move order to inspecting successfully!",
-            data: result
         });
 
     } catch (error: any) {
@@ -115,4 +114,26 @@ export const moveOrderToInspectingController = async (
         console.error(error);
         res.status(500).json({ message: "Internal Server Error" });
     }
+};
+export const confirmReceived = async (
+    req: Request<{ orderId: string }, unknown, MoveToInspectingPayload>,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        const userName = (req.user as CustomJwtPayload).username;
+        const orderId = Number(req.params.orderId);
+        // Validation 
+        if (isNaN(orderId)) {
+            throw new AppError("Invalid Order ID", 400);
+        }
+        // เรียก Service
+        await orderService.moveToComplete(orderId, userName);
+        res.status(200).json({
+            message: "Confirm recived successfully."
+        });
+    } catch (error) {
+        next(error);
+    }
+
 };
