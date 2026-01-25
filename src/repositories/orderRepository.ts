@@ -237,6 +237,18 @@ export const orderRepository = {
         const result = await pool.query(sql, [orderId]);
         return result.rows[0] || null;
     },
+    findParcelNumberByOrderId: async (orderId: number) => {
+        const sql = `
+        SELECT shipping_carrier, parcel_number
+        FROM parcel_numbers
+        WHERE order_id = $1 
+        ORDER BY created_at DESC 
+        LIMIT 1
+    `;
+        const result = await pool.query(sql, [orderId]);
+        return result.rows[0] || null;
+    },
+
     findOrderSlips: async (orderId: number, client: PoolClient) => {
         const sql = `
         SELECT image_url, file_path

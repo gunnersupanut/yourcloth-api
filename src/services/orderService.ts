@@ -32,13 +32,22 @@ export const orderService = {
                 rejectionReason = latestRejection.reason;
             }
         }
+
+        // เช็คว่าสถานะ Shipping/Complete ไหม 
+        // ถ้าใช่ดึงข้อมูลการจัดส่งมาด้วย
+        let parcelDetail = null;
+        if (firstRow.status === 'SHIPPING' || firstRow.status === 'COMPLETE' || firstRow.status === 'CANCEL') {
+            const parcelDetailData = await orderRepository.findParcelNumberByOrderId(orderId)
+            if (parcelDetailData) parcelDetail = parcelDetailData
+        }
         const orderData = {
             orderId: firstRow.order_id,
             status: firstRow.status,
-            rejectionReason: rejectionReason,
+            rejectionReason,
             shippingCost: firstRow.shipping_cost,
             paymenMethod: firstRow.paymen_method,
             shippingMethod: firstRow.shipping_method,
+            parcelDetail,
             orderAt: firstRow.order_at,
             // สรุปยอดเงิน
             totalAmount: grandTotal,

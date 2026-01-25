@@ -5,7 +5,7 @@ import { authAdminMiddleware } from '../middleware/authMiddleware';
 const router = express.Router()
 router.get('/inspecting', authAdminMiddleware, getInspectingOrdersController);
 
-router.put('/:orderId/approve', authAdminMiddleware, approvePaymentController);
-router.put('/:orderId/reject', authAdminMiddleware, rejectPaymentController);
-router.put('/:orderId/shipping', authAdminMiddleware, shippingOrderController)
+router.patch('/:orderId/approve', authAdminMiddleware, approvePaymentController);
+router.patch('/:orderId/reject', authAdminMiddleware, rejectPaymentController);
+router.patch('/:orderId/shipping', authAdminMiddleware, shippingOrderController)
 export default router

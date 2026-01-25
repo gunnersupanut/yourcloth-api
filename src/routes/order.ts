@@ -9,6 +9,7 @@ router.get('/', authMiddleware, getAllOrdersController)
 router.get('/:id', authMiddleware, getOrderByIdController);
 // POST
 router.post('/', authMiddleware, createOrderController);
-router.post('/:orderId/confirm-payment', authMiddleware, moveOrderToInspectingController);
-router.put('/:orderId/confirm-received', authMiddleware, confirmReceived)
+router.patch('/:orderId/confirm-payment', authMiddleware, moveOrderToInspectingController);
+
+router.patch('/:orderId/confirm-received', authMiddleware, confirmReceived)
 export default router;
