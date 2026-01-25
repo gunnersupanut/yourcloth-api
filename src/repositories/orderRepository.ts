@@ -276,7 +276,7 @@ export const orderRepository = {
         SELECT 
             p.problem_text,
             p.created_at,
-            -- รวม Attachments เป็น Array JSON กลับมาเลย
+            -- รวม Attachments เป็น Ar ray JSON กลับมาเลย
             COALESCE(
                 json_agg(
                     json_build_object(
