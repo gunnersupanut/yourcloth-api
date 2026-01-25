@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { orderService } from '../services/orderService';
-import { CreateOrderPayload, MoveToInspectingPayload } from '../type/orderTypes';
+import { CancelPayload, CreateOrderPayload, MoveToInspectingPayload } from '../type/orderTypes';
 import { CustomJwtPayload } from '../type/jwtType';
 import { AppError } from '../utils/AppError';
 
@@ -135,5 +135,35 @@ export const confirmReceived = async (
     } catch (error) {
         next(error);
     }
+};
+export const cancelOrderController = async (
+    req: Request<{ orderId: string }, unknown, CancelPayload>,
+    res: Response,
+    next:NextFunction
+) => {
+    try {
+        //  แกะ User (ใครเป็นคนยกเลิก)
+        const userName = (req.user as CustomJwtPayload).username;
+        const orderId = Number(req.params.orderId);
+        const { problemDescription, attachments } = req.body;
 
+        // Validation 
+        if (isNaN(orderId)) {
+            throw new AppError("Invalid Order ID", 400);
+        }
+        if (!problemDescription || !problemDescription.trim()) {
+            throw new AppError("Problem description is required.", 400);
+        }
+
+        // เรียก Service 
+        await orderService.moveToCancel(orderId, userName, problemDescription, attachments || []);
+
+        // ตอบกลับ
+        res.status(200).json({
+            message: "Order cancelled successfully.",
+        });
+
+    } catch (error) {
+        next(error);
+    }
 };

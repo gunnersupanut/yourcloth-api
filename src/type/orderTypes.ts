@@ -43,3 +43,8 @@ export interface ImageObj {
     imageUrl: string;
     filePath: string
 }
+
+export interface CancelPayload {
+    problemDescription: string;
+    attachments: { file_url: string; file_path: string; media_type: "Image" | "Video" }[];
+}

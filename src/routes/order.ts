@@ -1,6 +1,6 @@
 import express from 'express';
 import { authMiddleware } from '../middleware/authMiddleware';
-import { confirmReceived, createOrderController, getAllOrdersController, getOrderByIdController, moveOrderToInspectingController } from '../controllers/orderController';
+import { cancelOrderController, confirmReceived, createOrderController, getAllOrdersController, getOrderByIdController, moveOrderToInspectingController } from '../controllers/orderController';
 
 const router = express.Router();
 // get
@@ -9,7 +9,8 @@ router.get('/', authMiddleware, getAllOrdersController)
 router.get('/:id', authMiddleware, getOrderByIdController);
 // POST
 router.post('/', authMiddleware, createOrderController);
-router.patch('/:orderId/confirm-payment', authMiddleware, moveOrderToInspectingController);
+router.post('/:orderId/confirm-payment', authMiddleware, moveOrderToInspectingController);
 
-router.patch('/:orderId/confirm-received', authMiddleware, confirmReceived)
+router.post('/:orderId/confirm-received', authMiddleware, confirmReceived)
+router.post('/:orderId/cancel', authMiddleware, cancelOrderController);
 export default router;

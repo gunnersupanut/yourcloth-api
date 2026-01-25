@@ -4,101 +4,6 @@ import { AppError } from '../utils/AppError';
 import { ImageObj } from '../type/orderTypes';
 
 export const orderRepository = {
-    // หา order
-    findAllOrdersByUserId: async (userId: number) => {
-        // เลือก Column ที่จำเป็น (เอามาโชว์หน้า List)
-        // payment_method, shipping_method อย่าลืม select มาด้วยถ้าจะใช้
-        const fields = `
-            order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id,
-            product_name_snapshot, quantity, price_snapshot,shipping_cost,
-            ordered_at, payment_method, shipping_method
-        `;
-
-        // UNION ALL 
-        // ใช้ UNION ALL เร็วกว่า UNION ธรรมดา ไม่ต้องเช็คซ้ำ
-        const sql = `
-        WITH all_orders AS (
-            SELECT ${fields}, 'PENDING' as status FROM order_pending WHERE user_id = $1
-            UNION ALL
-            SELECT ${fields}, 'INSPECTING' as status FROM order_inspecting WHERE user_id = $1
-            UNION ALL
-            SELECT ${fields}, 'PACKING' as status FROM order_packing WHERE user_id = $1
-            UNION ALL
-            SELECT ${fields}, 'SHIPPING' as status FROM order_shipping WHERE user_id = $1
-            UNION ALL
-            SELECT ${fields}, 'COMPLETE' as status FROM order_complete WHERE user_id = $1
-            UNION ALL
-            SELECT ${fields}, 'CANCEL' as status FROM order_cancel WHERE user_id = $1
-        )
-        SELECT 
-            ao.*,
-            p.image_url,
-            p.description
-        FROM all_orders ao
-        LEFT JOIN product_variants pv ON ao.product_variants_id = pv.id
-        LEFT JOIN products p ON pv.product_id = p.id
-            ORDER BY ordered_at DESC;
-        `;
-
-        const result = await pool.query(sql, [userId]);
-        return result.rows;
-    },
-    findOrderById: async (orderId: number, client?: PoolClient) => {
-        // Select Column ที่จำเป็นออกมาให้หมด 
-        const fields = `
-            order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id, shipping_cost,
-            product_name_snapshot, quantity, price_snapshot,payment_method, shipping_method, ordered_at
-        `;
-
-        const sql = `
-        WITH all_orders AS (
-            SELECT ${fields}, 'PENDING' as status FROM order_pending WHERE order_id = $1
-            UNION ALL
-            SELECT ${fields}, 'INSPECTING' as status FROM order_inspecting WHERE order_id = $1
-            UNION ALL
-            SELECT ${fields}, 'PACKING' as status FROM order_packing WHERE order_id = $1
-            UNION ALL
-            SELECT ${fields}, 'SHIPPING' as status FROM order_shipping WHERE order_id = $1
-            UNION ALL
-            SELECT ${fields}, 'COMPLETE' as status FROM order_complete WHERE order_id = $1
-            UNION ALL
-            SELECT ${fields}, 'CANCEL' as status FROM order_cancel WHERE order_id = $1
-        )
-        SELECT 
-            ao.*,
-            p.image_url,
-            p.description
-        FROM all_orders ao
-        LEFT JOIN product_variants pv ON ao.product_variants_id = pv.id
-        LEFT JOIN products p ON pv.product_id = p.id
-            ORDER BY ordered_at DESC;
-            `;
-        const queryRunner = client || pool;
-        const result = await queryRunner.query(sql, [orderId]);
-
-        return result.rows;
-    },
-    // ดึงข้อมูล Product Variants (ราคา + ชื่อ) เพื่อเอามาทำ Snapshot
-    getProductVariantDetails: async (variantIds: number[]) => {
-        // ต้อง Join เพื่อเอาชื่อสินค้ามา snapshot ด้วย
-        const sql = `
-          SELECT 
-            v.id, 
-            v.price, 
-            v.stock_quantity, 
-            p.product_name as base_name, 
-            s.name as size_name,   
-            c.name as color_name   
-        FROM product_variants v
-        JOIN products p ON v.product_id = p.id
-        LEFT JOIN sizes s ON v.size_id = s.id
-        LEFT JOIN colors c ON v.color_id = c.id
-        
-        WHERE v.id = ANY($1)
-        `;
-        const result = await pool.query(sql, [variantIds]);
-        return result.rows;
-    },
     // Bulk Insert ลง order_pending
     createOrderGenericBulk: async (
         tableName: string,
@@ -175,36 +80,6 @@ export const orderRepository = {
         `;
         await client.query(sql, values);
     },
-    deleteOrderGeneric: async (tableName: string,
-        orderGroupId: number, userId: number, client: PoolClient) => {
-        // Security Guard: Whitelist (กัน SQL Injection)
-        const allowedTables = [
-            'order_pending',
-            'order_inspecting',
-            'order_packing',
-            'order_shipping',
-            'order_complete',
-            'order_cancel'
-        ];
-        if (!allowedTables.includes(tableName)) {
-            throw new AppError(`Table '${tableName}' is not allowed!`, 400);
-        }
-        const sql = `
-        DELETE FROM ${tableName}
-        WHERE order_id = $1
-        AND user_id = $2         
-        RETURNING *;
-        `
-        const result = await client.query(sql, [orderGroupId, userId]);
-        return result.rows
-    },
-    getNextOrderGroupId: async (client: PoolClient) => {
-        const sql = "SELECT nextval('order_group_seq') as id";
-        const result = await client.query(sql);
-
-        // แปลงเป็น int ส่งกลับไป (DB มันส่งมาเป็น string สำหรับ bigint)
-        return parseInt(result.rows[0].id);
-    },
     createOrderLog: async (
         orderId: number,
         actionType: string,   // e.g., 'ORDER_CREATED', 'PAYMENT_UPLOADED'
@@ -225,6 +100,143 @@ export const orderRepository = {
             RETURNING *;
         `;
         await client.query(sql, [orderId, imageObj.imageUrl, imageObj.filePath]);
+    },
+    createOrderProblem: async (orderId: number, problem_text: string, client: PoolClient) => {
+        const sql = `
+        INSERT INTO order_problems (order_id, problem_text, created_at)
+        VALUES ($1, $2, NOW())
+        RETURNING id; 
+    `;
+        const result = await client.query(sql, [orderId, problem_text]);
+        return result.rows[0]; // return { id: 123 }
+    },
+    createProblemAttachmentsBulk: async (
+        attachments: { problem_id: number; file_url: string; file_path: string; media_type: "Image" | "Video" }[],
+        client: PoolClient
+    ) => {
+        // ถ้าไม่มีรูป ส่งมาว่างๆ ก็จบเลย ไม่ต้องทำไร
+        if (!attachments || attachments.length === 0) return;
+
+        // สร้าง Placeholder ($1, $2, $3, $4), ($5, $6, $7, $8) ...
+        const values: any[] = [];
+        const placeholders = attachments.map((_, index) => {
+            const offset = index * 4; // 4 columns
+            return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`;
+        }).join(", ");
+
+        // ยัดค่าลง Array เรียงตามลำดับ
+        attachments.forEach(file => {
+            values.push(file.problem_id, file.file_url, file.file_path, file.media_type);
+        });
+
+        const sql = `
+        INSERT INTO problem_attachments (problem_id, file_url, file_path, media_type)
+        VALUES ${placeholders};
+    `;
+
+        await client.query(sql, values);
+    },
+    // ดึงข้อมูล Product Variants (ราคา + ชื่อ) เพื่อเอามาทำ Snapshot
+    getProductVariantDetails: async (variantIds: number[]) => {
+        // ต้อง Join เพื่อเอาชื่อสินค้ามา snapshot ด้วย
+        const sql = `
+          SELECT 
+            v.id, 
+            v.price, 
+            v.stock_quantity, 
+            p.product_name as base_name, 
+            s.name as size_name,   
+            c.name as color_name   
+        FROM product_variants v
+        JOIN products p ON v.product_id = p.id
+        LEFT JOIN sizes s ON v.size_id = s.id
+        LEFT JOIN colors c ON v.color_id = c.id
+        
+        WHERE v.id = ANY($1)
+        `;
+        const result = await pool.query(sql, [variantIds]);
+        return result.rows;
+    },
+    getNextOrderGroupId: async (client: PoolClient) => {
+        const sql = "SELECT nextval('order_group_seq') as id";
+        const result = await client.query(sql);
+
+        // แปลงเป็น int ส่งกลับไป (DB มันส่งมาเป็น string สำหรับ bigint)
+        return parseInt(result.rows[0].id);
+    },
+    // หา order
+    findAllOrdersByUserId: async (userId: number) => {
+        // เลือก Column ที่จำเป็น (เอามาโชว์หน้า List)
+        // payment_method, shipping_method อย่าลืม select มาด้วยถ้าจะใช้
+        const fields = `
+            order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id,
+            product_name_snapshot, quantity, price_snapshot,shipping_cost,
+            ordered_at, payment_method, shipping_method
+        `;
+
+        // UNION ALL 
+        // ใช้ UNION ALL เร็วกว่า UNION ธรรมดา ไม่ต้องเช็คซ้ำ
+        const sql = `
+        WITH all_orders AS (
+            SELECT ${fields}, 'PENDING' as status FROM order_pending WHERE user_id = $1
+            UNION ALL
+            SELECT ${fields}, 'INSPECTING' as status FROM order_inspecting WHERE user_id = $1
+            UNION ALL
+            SELECT ${fields}, 'PACKING' as status FROM order_packing WHERE user_id = $1
+            UNION ALL
+            SELECT ${fields}, 'SHIPPING' as status FROM order_shipping WHERE user_id = $1
+            UNION ALL
+            SELECT ${fields}, 'COMPLETE' as status FROM order_complete WHERE user_id = $1
+            UNION ALL
+            SELECT ${fields}, 'CANCEL' as status FROM order_cancel WHERE user_id = $1
+        )
+        SELECT 
+            ao.*,
+            p.image_url,
+            p.description
+        FROM all_orders ao
+        LEFT JOIN product_variants pv ON ao.product_variants_id = pv.id
+        LEFT JOIN products p ON pv.product_id = p.id
+            ORDER BY ordered_at DESC;
+        `;
+
+        const result = await pool.query(sql, [userId]);
+        return result.rows;
+    },
+    findOrderById: async (orderId: number, client?: PoolClient) => {
+        // Select Column ที่จำเป็นออกมาให้หมด 
+        const fields = `
+            order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id, shipping_cost,
+            product_name_snapshot, quantity, price_snapshot,payment_method, shipping_method, ordered_at
+        `;
+
+        const sql = `
+        WITH all_orders AS (
+            SELECT ${fields}, 'PENDING' as status FROM order_pending WHERE order_id = $1
+            UNION ALL
+            SELECT ${fields}, 'INSPECTING' as status FROM order_inspecting WHERE order_id = $1
+            UNION ALL
+            SELECT ${fields}, 'PACKING' as status FROM order_packing WHERE order_id = $1
+            UNION ALL
+            SELECT ${fields}, 'SHIPPING' as status FROM order_shipping WHERE order_id = $1
+            UNION ALL
+            SELECT ${fields}, 'COMPLETE' as status FROM order_complete WHERE order_id = $1
+            UNION ALL
+            SELECT ${fields}, 'CANCEL' as status FROM order_cancel WHERE order_id = $1
+        )
+        SELECT 
+            ao.*,
+            p.image_url,
+            p.description
+        FROM all_orders ao
+        LEFT JOIN product_variants pv ON ao.product_variants_id = pv.id
+        LEFT JOIN products p ON pv.product_id = p.id
+            ORDER BY ordered_at DESC;
+            `;
+        const queryRunner = client || pool;
+        const result = await queryRunner.query(sql, [orderId]);
+
+        return result.rows;
     },
     findLatestRejectionByOrderId: async (orderId: number) => {
         const sql = `
@@ -248,7 +260,6 @@ export const orderRepository = {
         const result = await pool.query(sql, [orderId]);
         return result.rows[0] || null;
     },
-
     findOrderSlips: async (orderId: number, client: PoolClient) => {
         const sql = `
         SELECT image_url, file_path
@@ -259,6 +270,29 @@ export const orderRepository = {
         const result = await client.query(sql, [orderId]);
         return result.rows[0] || null;
     },
+    deleteOrderGeneric: async (tableName: string,
+        orderGroupId: number, userId: number, client: PoolClient) => {
+        // Security Guard: Whitelist (กัน SQL Injection)
+        const allowedTables = [
+            'order_pending',
+            'order_inspecting',
+            'order_packing',
+            'order_shipping',
+            'order_complete',
+            'order_cancel'
+        ];
+        if (!allowedTables.includes(tableName)) {
+            throw new AppError(`Table '${tableName}' is not allowed!`, 400);
+        }
+        const sql = `
+        DELETE FROM ${tableName}
+        WHERE order_id = $1
+        AND user_id = $2         
+        RETURNING *;
+        `
+        const result = await client.query(sql, [orderGroupId, userId]);
+        return result.rows
+    },
     deleteOrderSlips: async (orderId: number, client: PoolClient) => {
         const sql = `
         DELETE FROM order_slips
@@ -267,5 +301,5 @@ export const orderRepository = {
     `;
         const result = await client.query(sql, [orderId]);
         return result.rows
-    }
+    },
 };

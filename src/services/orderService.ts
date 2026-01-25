@@ -333,7 +333,7 @@ export const orderService = {
             // const grandTotal = orderDetail.reduce((sum, item) => {
             //     return sum + Number(item.net_total); // ใส่ Number() ดักไว้ ผื่อ DB ส่งมาเป็น String
             // }, 0);
-            // ---Bulk Insert ลง order_inspecting
+            // ---Bulk Insert ลง order_complete
             await orderRepository.createOrderGenericBulk(
                 'order_complete',   // Parameter 1: ชื่อตาราง
                 header.order_id,      // Parameter 2: ID
@@ -369,5 +369,92 @@ export const orderService = {
         } finally {
             client.release();
         }
+    },
+    moveToCancel: async (orderId: number,
+        userName: string,
+        problemDescription: string,
+        attachments: { file_url: string; file_path: string; media_type: "Image" | "Video" }[]) => {
+        const client = await pool.connect();
+        try {
+            // เปิด Transaction
+            await client.query('BEGIN');
+            // ---ดึง order จาก order_shipping
+            const orderDetail = await orderRepository.findOrderById(orderId);
+            // เช็คข้อมูล
+            // ถ้าไม่เจอ
+            if (!orderDetail || orderDetail.length === 0) {
+                throw new AppError(`Order not found in shipping status`, 404);
+            }
+            // ถ้าเจอแต่ผิดสถานะ
+            if (orderDetail[0].status !== 'SHIPPING') {
+                throw new AppError('Order is not in shipping status', 400);
+            };
+            // ---จัดรูป order ใหม่
+            const header = orderDetail[0];
+            // จัดรูป address
+            const addressPayload = {
+                recipient_name: header.receiver_name,
+                phone: header.receiver_phone,
+                address: header.address
+            };
+            // จัดรูป items
+            const readyItems = orderDetail.map(row => ({
+                product_name: row.product_name_snapshot,
+                variant_id: row.product_variants_id,
+                quantity: row.quantity,
+                price_snapshot: row.price_snapshot
+            }));
+            // ---Bulk Insert ลง order_cancel
+            await orderRepository.createOrderGenericBulk(
+                'order_cancel',   // Parameter 1: ชื่อตาราง
+                header.order_id,      // Parameter 2: ID
+                header.user_id,            // Parameter 3: User
+                addressPayload,   // Parameter 4: Address Data
+                header.payment_method,     // Parameter 5: จ่ายไง 
+                header.shipping_method,    // Parameter 6: ส่งไง 
+                header.shipping_cost,      // Parameter 7: ค่าส่ง
+                readyItems,        // Parameter 8: Items
+                header.ordered_at,   // Parameter 9: OrderAt
+                client             // Parameter 10: Client
+            );
+            // ---จัดการ Order Problem
+            // ลง Text ปัญหา -> ได้ ID กลับมา
+            const problemRes = await orderRepository.createOrderProblem(orderId, problemDescription, client);
+            const problemId = problemRes.id;
+            // ถ้ามีไฟล์แนบ -> เตรียมข้อมูล + ยัดลง DB
+            if (attachments && attachments.length > 0) {
+                // map เอา problemId ยัดใส่เข้าไปในทุก object
+                const readyAttachments = attachments.map(file => ({
+                    problem_id: problemId, // ใส่ ID ที่เพิ่งได้มา
+                    file_url: file.file_url,
+                    file_path: file.file_path, // public_id
+                    media_type: file.media_type
+                }));
+
+                // สั่ง Bulk Insert
+                await orderRepository.createProblemAttachmentsBulk(readyAttachments, client);
+            }
+            // สร้าง order logs
+            await orderRepository.createOrderLog(
+                orderId,              // เลข Order ID
+                'ORDER_CANCEL',           // Action Type
+                `USER ${userName}`, // Actor (เอาชื่อคนรับ หรือ username จาก token ก็ได้)
+                `User Cancelled. Reason: ${problemDescription}`, // Description
+                client                     // ส่ง client ตัวเดิมไป (ให้มัน Commit พร้อมกัน)
+            );
+            // ลบ order ออกจาก order_shipping
+            await orderRepository.deleteOrderGeneric(
+                "order_shipping",
+                orderId,
+                header.user_id,
+                client
+            )
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
     }
-};
+}
