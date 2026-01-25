@@ -97,7 +97,7 @@ export const moveOrderToInspectingController = async (
 
         // เรียก Service
         await orderService.moveToInspecting(orderId, userName, imageObj);
-
+        console.log(`[PAYMENT] User: ${userName} uploaded slip for Order ID: ${orderId}`);
         res.status(200).json({
             message: "Move order to inspecting successfully!",
         });

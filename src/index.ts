@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from "dotenv";
 import cors from 'cors';
+import morgan from 'morgan';
 // โหลดตัวแปรจาก .env
 dotenv.config();
 
@@ -13,6 +14,8 @@ const nodeEnv = process.env.NODE_ENV
 // --Cors
 app.use(cors());
 app.use(express.json());
+// Morgan 
+app.use(morgan('dev'));
 // ---Router
 // Auth 
 import authRouter from './routes/auth';
