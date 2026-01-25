@@ -21,9 +21,10 @@ export const orderService = {
         // คำนวณราคารวมทั้งบิล (Sum net_total ของทุกแถว)
 
         const grandTotal = rows.reduce((sum, row) => sum + Number(row.net_total), 0);
-        // --- ดึงเหตุผลการปฏิเสธ ---
         let rejectionReason = null;
-
+        let parcelDetail = null;
+        let problemDetail = null;
+        // --- ดึงเหตุผลการปฏิเสธ ---
         // เช็คก่อนว่าสถานะเป็น PENDING ไหม? (ถ้าใช่ แปลว่าอาจจะโดนดีดกลับมา)
         if (firstRow.status === 'PENDING') {
             const latestRejection = await orderRepository.findLatestRejectionByOrderId(orderId);
@@ -35,10 +36,20 @@ export const orderService = {
 
         // เช็คว่าสถานะ Shipping/Complete ไหม 
         // ถ้าใช่ดึงข้อมูลการจัดส่งมาด้วย
-        let parcelDetail = null;
         if (firstRow.status === 'SHIPPING' || firstRow.status === 'COMPLETE' || firstRow.status === 'CANCEL') {
             const parcelDetailData = await orderRepository.findParcelNumberByOrderId(orderId)
             if (parcelDetailData) parcelDetail = parcelDetailData
+        }
+        // เช็คสถานะว่า order cancel ไหม
+        if (firstRow.status === 'CANCEL') {
+            const problemData = await orderRepository.findProblemByOrderId(orderId);
+            if (problemData) {
+                problemDetail = {
+                    description: problemData.problem_text,
+                    attachments: problemData.attachments, // รูป/วิดีโอ
+                    reportedAt: problemData.created_at
+                };
+            }
         }
         const orderData = {
             orderId: firstRow.order_id,
@@ -48,6 +59,7 @@ export const orderService = {
             paymenMethod: firstRow.paymen_method,
             shippingMethod: firstRow.shipping_method,
             parcelDetail,
+            problemDetail,
             orderAt: firstRow.order_at,
             // สรุปยอดเงิน
             totalAmount: grandTotal,

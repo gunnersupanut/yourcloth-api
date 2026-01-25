@@ -270,6 +270,31 @@ export const orderRepository = {
         const result = await client.query(sql, [orderId]);
         return result.rows[0] || null;
     },
+    // ดึงข้อมูลปัญหา + รูปภาพ
+    findProblemByOrderId: async (orderId: number) => {
+        const sql = `
+        SELECT 
+            p.problem_text,
+            p.created_at,
+            -- รวม Attachments เป็น Array JSON กลับมาเลย
+            COALESCE(
+                json_agg(
+                    json_build_object(
+                        'file_url', pa.file_url, 
+                        'media_type', pa.media_type
+                    )
+                ) FILTER (WHERE pa.id IS NOT NULL), 
+                '[]'
+            ) as attachments
+        FROM order_problems p
+        LEFT JOIN problem_attachments pa ON p.id = pa.problem_id
+        WHERE p.order_id = $1
+        GROUP BY p.id
+    `;
+
+        const result = await pool.query(sql, [orderId]);
+        return result.rows[0]; 
+    },
     deleteOrderGeneric: async (tableName: string,
         orderGroupId: number, userId: number, client: PoolClient) => {
         // Security Guard: Whitelist (กัน SQL Injection)
