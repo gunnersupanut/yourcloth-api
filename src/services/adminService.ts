@@ -14,7 +14,6 @@ export const adminService = {
     login: async (username: string, password: string) => {
         // หา admin 
         const admin = await adminRepository.findByUsernameWithPassword(username)
-        console.log("Admin Data:", admin)           // ถ้าไม่เจอ
         if (!admin || !(await bcrypt.compare(password, admin.password_hash))) {
             throw new AppError("Invalid username or password", 401);
         }

@@ -5,13 +5,107 @@ import { CreateParcelNumberPayLoad, CreateRejectionPayLoad, ShippingDetailPayloa
 import { AppError } from '../utils/AppError';
 import { deleteFileFromCloudinary } from '../utils/cloudinary';
 export const adminOrderService = {
+    getAdminOrders: async (query: any) => {
+        // แตกตัวแปรออกมา พร้อมใส่ Default Value
+        const page = parseInt(query.page) || 1;
+        const limit = parseInt(query.limit) || 10;
+        const status = query.status ? query.status.toUpperCase() : 'ALL';
+        const search = query.search || '';
+        const sortBy = query.sortBy
+        const startDate = query.startDate
+        const endDate = query.endDate
+        // เรียก Repo ไปดึงข้อมูลดิบ (Raw Rows) มาก่อน
+        // ตรงนี้จะได้ Array ยาวๆ ที่ Order ID ซ้ำกันได้
+        const result = await adminOrderRepository.getAllOrdersAdmin(
+            status,
+            page,
+            limit,
+            search,
+            sortBy,
+            startDate,
+            endDate);
+        const rawOrders = result.orders;
+        // Grouping Data 
+        const groupedOrders = rawOrders.reduce((acc: any[], row: any) => {
+            const rowOrderId = Number(row.order_id);
+            // หาว่ามี order_id นี้ในตะกร้าหรือยัง?
+            let order = acc.find(o => o.id === rowOrderId);
+
+            if (!order) {
+                // ถ้ายังไม่มี ให้สร้าง "กล่อง" Order ใหม่รอไว้
+                order = {
+                    id: rowOrderId, // key หลัก
+                    userId: row.user_id,
+                    status: row.status,
+                    orderedAt: row.ordered_at,
+                    paymentMethod: row.payment_method,
+                    shippingMethod: row.shipping_method,
+
+                    // คำนวณเงินเริ่มต้น (เอาค่าส่งมาตั้งต้น)
+                    totalPrice: 0,
+                    shippingCost: Number(row.shipping_cost || 0),
+
+                    // ข้อมูลลูกค้า (ดึงจาก Snapshot ในตาราง order)
+                    customer: {
+                        name: row.receiver_name,
+                        phone: row.receiver_phone,
+                        address: row.address
+                    },
+
+                    // เตรียมถาดใส่สินค้า
+                    items: []
+                };
+
+                // บวกค่าส่งเข้าไปในยอดรวมก่อนเลย
+                order.totalPrice += order.shippingCost;
+
+                acc.push(order);
+            }
+
+            // --- จัดการ Item (สินค้า) ในแถวนั้นๆ ---
+            const price = Number(row.price_snapshot || 0);
+            const quantity = row.quantity || 1;
+            const lineTotal = price * quantity;
+
+            // บวกทบเข้าไปในยอดรวมบิล Grand Total
+            order.totalPrice += lineTotal;
+
+            // ยัดสินค้าลงใน items
+            // เช็คก่อนว่าแถวนั้นมีสินค้าจริงไหม (เผื่อเคส order ว่าง ซึ่งไม่น่ามี)
+            if (row.product_variants_id) {
+                order.items.push({
+                    id: row.id, // id ของ row ใน database
+                    variantId: row.product_variants_id,
+                    productName: row.product_name_snapshot,
+                    price: price,
+                    quantity: quantity,
+                    lineTotal: lineTotal,
+                    // รูปภาพจาก View (ถ้าไม่มีรูป ใส่ภาพว่างๆ หรือ null)
+                    image: row.image_url || null,
+                    description: row.description || ''
+                });
+            }
+
+            return acc;
+        }, []);
+
+        // ส่งกลับไป
+        return {
+            orders: groupedOrders, // ส่งตัวที่จัดกลุ่มแล้วไป
+            currentPage: page,
+            // คำนวณ page ใหม่คร่าวๆ จากจำนวน Order ที่จัดกลุ่มได้
+            // หรือจะใช้ค่าเดิมจาก Repo ก็ได้
+            totalPages: result.totalPages,
+            hasMore: result.total > (page * limit)
+        };
+    },
     getInspectingOrders: async () => {
-        // 1. ดึงข้อมูลดิบ
+        // ดึงข้อมูลดิบ
         const rawOrders = await adminOrderRepository.getInspectingOrdersWithSlips();
 
         if (!rawOrders) return [];
 
-        // 2. 🔥 ใช้ท่าไม้ตาย Reduce จัดกลุ่ม (Grouping)
+        // ใช้ Reduce จัดกลุ่ม (Grouping)
         const groupedOrders = rawOrders.reduce((acc: any[], row: any) => {
             // หาว่ามี order_id นี้ในตะกร้าหรือยัง?
             let order = acc.find(o => o.orderId === row.order_id);

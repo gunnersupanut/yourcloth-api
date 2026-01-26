@@ -5,6 +5,7 @@ import { CreateOrderPayload, ImageObj, OrderHistoryEntry } from '../type/orderTy
 import { AppError } from '../utils/AppError';
 import { productRepository } from '../repositories/productRepository';
 import { cartService } from './cartService';
+import { getIO } from '../utils/socket';
 
 export const orderService = {
     getOrderDetails: async (orderId: number) => {
@@ -220,7 +221,18 @@ export const orderService = {
                 client                     // ส่ง client ตัวเดิมไป (ให้มัน Commit พร้อมกัน)
             );
             await client.query('COMMIT');
-
+            // Socket Io
+            try {
+                const io = getIO();
+                io.emit("ADMIN_UPDATE", {
+                    type: "NEW_ORDER",
+                    message: `New Order #${orderGroupId}.`,
+                    orderId: orderGroupId
+                });
+                console.log(`Socket emitted for Order #${orderGroupId}`);
+            } catch (socketError) {
+                console.error("Socket emit failed (Admin won't be notified):", socketError);
+            }
             return {
                 orderId: orderGroupId,
                 totalAmount: grandTotal,
@@ -303,6 +315,18 @@ export const orderService = {
             )
             // เซฟทุกอย่างที่ทำ
             await client.query('COMMIT');
+            // Socket Io
+            try {
+                const io = getIO();
+                io.emit("ADMIN_UPDATE", {
+                    type: "NEW_SLIP",
+                    message: `New Order #${orderId}.`,
+                    orderId: orderId
+                });
+                console.log(`Socket emitted for Order #${orderId}`);
+            } catch (socketError) {
+                console.error("Socket emit failed (Admin won't be notified):", socketError);
+            }
         } catch (error) {
             await client.query('ROLLBACK');
             throw error;

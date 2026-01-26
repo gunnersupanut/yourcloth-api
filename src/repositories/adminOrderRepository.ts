@@ -2,44 +2,202 @@ import pool from '../config/db';
 import { PoolClient } from 'pg';
 import { AppError } from '../utils/AppError';
 import { CreateParcelNumberPayLoad, CreateRejectionPayLoad } from '../type/adminOrderTypes';
-import { toSnakeCase } from '../utils/dbHelper';
 export const adminOrderRepository = {
     // หา order
-    findAllOrders: async (userId: number) => {
-        const fields = `
-            order_id, user_id, net_total, receiver_name, receiver_phone, address, product_variants_id,
-            product_name_snapshot, quantity, price_snapshot,shipping_cost,
-            ordered_at, payment_method, shipping_method
+    // getAllOrdersAdmin: async (
+    //     status: string = 'ALL',
+    //     page: number = 1,
+    //     limit: number = 10,
+    //     search: string = '',
+    //     sortBy: string = 'newest',
+    //     startDate: string = '',
+    //     endDate: string = ''
+    // ) => {
+    //     const offset = (page - 1) * limit;
+    //     const values: any[] = [];
+    //     let whereConditions: string[] = [];
+
+    //     // ---Filter Logic ---
+    //     if (status !== 'ALL') {
+    //         values.push(status);
+    //         whereConditions.push(`status = $${values.length}`);
+    //     }
+
+    //     if (search) {
+    //         values.push(`%${search}%`);
+    //         whereConditions.push(`(receiver_name ILIKE $${values.length} OR order_id::text ILIKE $${values.length})`);
+    //     }
+
+    //     // 🔥 Date Filter: เลือกช่วงเวลา
+    //     if (startDate) {
+    //         values.push(startDate); // Format: YYYY-MM-DD
+    //         whereConditions.push(`ordered_at >= $${values.length}::timestamp`);
+    //     }
+    //     if (endDate) {
+    //         values.push(endDate + ' 23:59:59'); // เอาถึงสิ้นวัน
+    //         whereConditions.push(`ordered_at <= $${values.length}::timestamp`);
+    //     }
+
+    //     const whereClause = whereConditions.length > 0
+    //         ? `WHERE ${whereConditions.join(' AND ')}`
+    //         : '';
+
+    //     // --- Sort Logic (Dynamic ORDER BY) ---
+    //     // ต้อง Sort ตั้งแต่ตอนเลือก ID ใน CTE ไม่งั้นหน้าบ้านจะเห็นลำดับมั่ว
+    //     let orderByClause = 'ORDER BY MAX(ordered_at) DESC'; // Default Newest
+
+    //     switch (sortBy) {
+    //         case 'oldest':
+    //             orderByClause = 'ORDER BY MAX(ordered_at) ASC';
+    //             break;
+    //         case 'price_desc':
+    //             // เรียงตามราคารวม (net_total) มาก -> น้อย
+    //             orderByClause = 'ORDER BY SUM(net_total) DESC';
+    //             break;
+    //         case 'price_asc':
+    //             // เรียงตามราคารวม น้อย -> มาก
+    //             orderByClause = 'ORDER BY SUM(net_total) ASC';
+    //             break;
+    //         default: // newest
+    //             orderByClause = 'ORDER BY MAX(ordered_at) DESC';
+    //     }
+
+    //     // ---  นับจำนวน "Order" จริงๆ (Count Distinct) ---
+    //     // เพื่อให้ Pagination หน้าบ้านคำนวณหน้าถูก ไม่ใช่นับจำนวนของ
+    //     const countSql = `SELECT COUNT(DISTINCT order_id) as total FROM view_admin_orders ${whereClause}`;
+    //     const countRes = await pool.query(countSql, values);
+    //     const totalOrders = parseInt(countRes.rows[0].total || '0');
+
+    //     // ---  ใช้ CTE ดึงข้อมูล ---
+    //     // Step A (target_ids): หา Order ID 10 ใบที่ต้องการก่อน (LIMIT ตัดตรงนี้)
+    //     // Step B (Main Query): เอา ID พวกนั้น ไป JOIN เพื่อดึงของทั้งหมดออกมา
+
+    //     const limitIndex = values.length + 1;
+    //     const offsetIndex = values.length + 2;
+
+    //     const dataSql = `
+    //         WITH target_ids AS (
+    //             -- รวมกลุ่ม Order ID เพื่อหา Grand Total ก่อนเรียง 
+    //             SELECT order_id
+    //             FROM view_admin_orders
+    //             ${whereClause}
+    //             GROUP BY order_id
+    //             ${orderByClause}  -- เรียงตาม SUM หรือ MAX ที่ตั้งไว้ 
+    //             LIMIT $${limitIndex} OFFSET $${offsetIndex}
+    //         )
+    //         SELECT t1.* FROM view_admin_orders t1
+    //         JOIN target_ids t2 ON t1.order_id = t2.order_id
+    //         -- Sort รอบสุดท้ายเอาสวยงาม 
+    //         ORDER BY ${sortBy.includes('price') ? 't1.net_total DESC' : 't1.ordered_at DESC'}, t1.id ASC
+    //     `;
+
+    //     const dataRes = await pool.query(dataSql, [...values, limit, offset]);
+
+    //     return {
+    //         orders: dataRes.rows,
+    //         total: totalOrders,
+    //         currentPage: page,
+    //         totalPages: Math.ceil(totalOrders / limit)
+    //     };
+    // },
+    getAllOrdersAdmin: async (
+        status: string = 'ALL',
+        page: number = 1,
+        limit: number = 10,
+        search: string = '',
+        sortBy: string = 'newest',
+        startDate: string = '',
+        endDate: string = ''
+    ) => {
+        const offset = (page - 1) * limit;
+        const values: any[] = [];
+        let whereConditions: string[] = [];
+
+        // --- 1. Filter Logic (เหมือนเดิม) ---
+        if (status !== 'ALL') {
+            values.push(status);
+            whereConditions.push(`status = $${values.length}`);
+        }
+        if (search) {
+            values.push(`%${search}%`);
+            whereConditions.push(`(receiver_name ILIKE $${values.length} OR order_id::text ILIKE $${values.length})`);
+        }
+        if (startDate) {
+            values.push(startDate);
+            whereConditions.push(`ordered_at >= $${values.length}::timestamp`);
+        }
+        if (endDate) {
+            values.push(endDate + ' 23:59:59');
+            whereConditions.push(`ordered_at <= $${values.length}::timestamp`);
+        }
+
+        const whereClause = whereConditions.length > 0
+            ? `WHERE ${whereConditions.join(' AND ')}`
+            : '';
+
+        // --- 2. Sort Setup (กำหนดทิศทาง) ---
+        let cteOrderBy = '';     // เรียงใน CTE (เพื่อเลือก 10 คนแรก)
+        let finalOrderBy = '';   // เรียงตอนจบ (เพื่อให้ของเรียงสวย)
+
+        // เช็คว่า User อยากได้ มาก->น้อย (DESC) หรือ น้อย->มาก (ASC)
+        const isAsc = sortBy === 'oldest' || sortBy === 'price_asc';
+        const direction = isAsc ? 'ASC' : 'DESC';
+
+        switch (sortBy) {
+            case 'oldest': // เก่าสุดขึ้นก่อน
+            case 'newest': // ใหม่สุดขึ้นก่อน
+                // ใช้ MAX(ordered_at) เผื่อใน 1 ออเดอร์มีหลาย row เวลาไม่เท่ากัน (กันเหนียว)
+                cteOrderBy = `ORDER BY MAX(ordered_at) ${direction}`;
+                finalOrderBy = `ORDER BY t1.ordered_at ${direction}`;
+                break;
+
+            case 'price_asc':  // ถูกสุดขึ้นก่อน
+            case 'price_desc': // แพงสุดขึ้นก่อน
+                // เรียงตามผลรวมราคาทั้งออเดอร์
+                cteOrderBy = `ORDER BY SUM(net_total) ${direction}`;
+                // 🔥 Trick: เอา grand_total จาก CTE มาเรียงรอบสุดท้าย
+                finalOrderBy = `ORDER BY t2.grand_total ${direction}`;
+                break;
+
+            default: // Default Newest
+                cteOrderBy = 'ORDER BY MAX(ordered_at) DESC';
+                finalOrderBy = 'ORDER BY t1.ordered_at DESC';
+        }
+
+        // --- 3. Count Query ---
+        const countSql = `SELECT COUNT(DISTINCT order_id) as total FROM view_admin_orders ${whereClause}`;
+        const countRes = await pool.query(countSql, values);
+        const totalOrders = parseInt(countRes.rows[0].total || '0');
+
+        // --- 4. Main Query (CTE + Grand Total) ---
+        const limitIndex = values.length + 1;
+        const offsetIndex = values.length + 2;
+
+        const dataSql = `
+            WITH target_ids AS (
+                SELECT 
+                    order_id, 
+                    SUM(net_total) as grand_total -- คำนวณราคาเตรียมไว้เลย
+                FROM view_admin_orders
+                ${whereClause}
+                GROUP BY order_id
+                ${cteOrderBy} -- เรียงเพื่อตัด LIMIT
+                LIMIT $${limitIndex} OFFSET $${offsetIndex}
+            )
+            SELECT t1.*, t2.grand_total
+            FROM view_admin_orders t1
+            JOIN target_ids t2 ON t1.order_id = t2.order_id
+            ${finalOrderBy}, t1.id ASC -- เรียงตามทิศทางที่ถูกต้อง + เรียงไอเทมตาม ID
         `;
 
-        // UNION ALL 
-        // ใช้ UNION ALL เร็วกว่า UNION ธรรมดา ไม่ต้องเช็คซ้ำ
-        const sql = `
-        WITH all_orders AS (
-            SELECT ${fields}, 'PENDING' as status FROM order_pending
-            UNION ALL
-            SELECT ${fields}, 'INSPECTING' as status FROM order_inspecting
-            UNION ALL
-            SELECT ${fields}, 'PACKING' as status FROM order_packing
-            UNION ALL
-            SELECT ${fields}, 'SHIPPING' as status FROM order_shipping
-            UNION ALL
-            SELECT ${fields}, 'COMPLETE' as status FROM order_complete
-            UNION ALL
-            SELECT ${fields}, 'CANCEL' as status FROM order_cancel
-        )
-        SELECT 
-            ao.*,
-            p.image_url,
-            p.description
-        FROM all_orders ao
-        LEFT JOIN product_variants pv ON ao.product_variants_id = pv.id
-        LEFT JOIN products p ON pv.product_id = p.id
-            ORDER BY ordered_at DESC;
-        `;
+        const dataRes = await pool.query(dataSql, [...values, limit, offset]);
 
-        const result = await pool.query(sql, [userId]);
-        return result.rows;
+        return {
+            orders: dataRes.rows,
+            total: totalOrders,
+            currentPage: page,
+            totalPages: Math.ceil(totalOrders / limit)
+        };
     },
     findOrderByTableName: async (tableName: string) => {
         // Security Guard: Whitelist (กัน SQL Injection)

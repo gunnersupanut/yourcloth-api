@@ -2,11 +2,24 @@ import express from 'express';
 import dotenv from "dotenv";
 import cors from 'cors';
 import morgan from 'morgan';
+import http from "http";
+import { initSocket } from "./utils/socket";
 // โหลดตัวแปรจาก .env
 dotenv.config();
 
 const app = express();
-// เชื่อใจ Proxy ตัวแรกสุดที่ส่งมา ื( Render Load Balancer)
+// สร้าง HTTP Server ครอบ Express อีกที
+const server = http.createServer(app);
+// สร้าง Socket IO Server
+const io = initSocket(server);
+io.on("connection", (socket) => {
+  console.log("Client connected:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("Client disconnected");
+  });
+});
+// เชื่อใจ Proxy ตัวแรกสุดที่ส่งมา ( Render Load Balancer)
 app.set('trust proxy', 1);
 const port = process.env.PORT || 5000;
 const nodeEnv = process.env.NODE_ENV
@@ -50,8 +63,8 @@ app.use("/api/v1/admin/orders", adminOrderRouter)
 // Global Hanler Error
 app.use(errorHandler);
 // สั่งให้ Server มันเริ่มฟัง
-app.listen(port, () => {
-  console.log(`[Server] 🚀Server is running...`);
+server.listen(port, () => {
+  console.log(`[Server] Server is running...`);
   console.log(`env: ${nodeEnv}`);
   console.log(`port: ${port}`);
   if (nodeEnv === 'production') {

@@ -2,7 +2,22 @@ import { NextFunction, Request, Response } from "express";
 import { adminOrderService } from "../services/adminOrderService"
 import { AppError } from "../utils/AppError";
 import { CustomAdminJwtPayload } from "../type/jwtType";
+export const getAdminOrders = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        // รับ Query Params จาก URL (เช่น ?page=1&status=PENDING)
+        // ส่งไปให้ Service จัดการต่อ
+        const result = await adminOrderService.getAdminOrders(req.query);
 
+        res.status(200).json({
+            success: true,
+            message: "Fetch admin orders successfully",
+            data: result
+        });
+
+    } catch (error) {
+        next(error); // ส่ง Error ไปให้ Middleware จัดการ
+    }
+};
 export const getInspectingOrdersController = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const result = await adminOrderService.getInspectingOrders();
@@ -13,7 +28,7 @@ export const getInspectingOrdersController = async (req: Request, res: Response,
     } catch (error) {
         next(error);
     }
-}
+};
 export const approvePaymentController = async (req: Request, res: Response, next: NextFunction) => {
     try {
         // รับ Order ID จาก Params (เช่น /orders/:orderId/approve)
@@ -62,7 +77,6 @@ export const rejectPaymentController = async (req: Request, res: Response, next:
         next(error);
     }
 };
-
 export const shippingOrderController = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { orderId } = req.params;
