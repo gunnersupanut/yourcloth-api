@@ -14,13 +14,10 @@ export const adminService = {
     login: async (username: string, password: string) => {
         // หา admin 
         const admin = await adminRepository.findByUsernameWithPassword(username)
-        // ถ้าไม่เจอ
+        console.log("Admin Data:", admin)           // ถ้าไม่เจอ
         if (!admin || !(await bcrypt.compare(password, admin.password_hash))) {
             throw new AppError("Invalid username or password", 401);
         }
-        // ถ้าเจอตรวจรหัสผ่าน กันสุ่ม user
-        const isMatchPassword: boolean = await bcrypt.compare(password, admin.password_hash)
-        if (!isMatchPassword) throw new AppError("The username or password is incorrect.", 401)
         // สร้าง Token
         const token = jwt.sign(
             {
