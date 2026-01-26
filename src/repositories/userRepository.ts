@@ -90,6 +90,10 @@ export const userRepository = {
         ];
         await pool.query(sql, values);
     },
+    updateLastLogin: async (userId: number) => {
+        // ยิง Update เวลาปัจจุบัน (NOW())
+        await pool.query('UPDATE users SET last_login = NOW() WHERE id = $1', [userId]);
+    },
     updateToken: async (data: updateTokenParams) => {
         const sql = `
            UPDATE users 

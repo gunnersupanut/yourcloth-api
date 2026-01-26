@@ -16,7 +16,6 @@ export const authService = {
         // ถ้าเจอตรวจรหัสผ่านก่อน กันสุ่ม user
         const isMatchPassword: boolean = await bcrypt.compare(password, user.password_hash)
         if (!isMatchPassword) throw new Error("invalid_credentials")
-
         //เช็ค verify
         if (!user.is_verify) return { status: "user_not_verify", email: user.email };
         // เช็คสถานะบัญชี
@@ -28,6 +27,8 @@ export const authService = {
             process.env.JWT_SECRET as string,
             { expiresIn: rememberMe ? '7d' : '1d' }
         );
+        // update เวลาเข้าใช้งานล่าสุด
+        await userRepository.updateLastLogin(user.id);
         return { status: "SUCCESS", token: token }
 
     },
