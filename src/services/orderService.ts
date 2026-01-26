@@ -20,8 +20,10 @@ export const orderService = {
         // ข้อมูล Header (ชื่อ, ที่อยู่, สถานะ) เอามาจากแถวแรกก็พอ (เพราะมันเหมือนกันทุกแถว)
         const firstRow = rows[0];
         // คำนวณราคารวมทั้งบิล (Sum net_total ของทุกแถว)
-
-        const grandTotal = rows.reduce((sum, row) => sum + Number(row.net_total), 0);
+        // คำนวณราคาสินค้ารวม (Sum net_total ของสินค้าทุกชิ้น)
+        const itemsTotal = rows.reduce((sum: number, row: any) => sum + Number(row.net_total), 0);
+        // รวมค่าส่งเข้าไปด้วย
+        const grandTotal = itemsTotal + Number(firstRow.shipping_cost || 0);
         let rejectionReason = null;
         let parcelDetail = null;
         let problemDetail = null;
@@ -57,11 +59,11 @@ export const orderService = {
             status: firstRow.status,
             rejectionReason,
             shippingCost: firstRow.shipping_cost,
-            paymenMethod: firstRow.paymen_method,
+            paymentMethod: firstRow.paymen_method,
             shippingMethod: firstRow.shipping_method,
             parcelDetail,
             problemDetail,
-            orderAt: firstRow.order_at,
+            orderedAt: firstRow.order_at,
             // สรุปยอดเงิน
             totalAmount: grandTotal,
             itemCount: rows.length,
@@ -88,7 +90,6 @@ export const orderService = {
         return orderData;
     },
     getAllOrders: async (userId: number): Promise<OrderHistoryEntry[]> => {
-        // c
         const rawRows = await orderRepository.findAllOrdersByUserId(userId);
         //  จัดกลุ่มตาม order_id 
         const groupedOrders = rawRows.reduce((acc: any[], row: any) => {

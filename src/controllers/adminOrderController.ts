@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { adminOrderService } from "../services/adminOrderService"
 import { AppError } from "../utils/AppError";
 import { CustomAdminJwtPayload } from "../type/jwtType";
-export const getAdminOrders = async (req: Request, res: Response, next: NextFunction) => {
+export const getAdminOrdersController = async (req: Request, res: Response, next: NextFunction) => {
     try {
         // รับ Query Params จาก URL (เช่น ?page=1&status=PENDING)
         // ส่งไปให้ Service จัดการต่อ
@@ -16,6 +16,26 @@ export const getAdminOrders = async (req: Request, res: Response, next: NextFunc
 
     } catch (error) {
         next(error); // ส่ง Error ไปให้ Middleware จัดการ
+    }
+};
+export const getAdminOrderDetailController = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { id } = req.params;
+
+        // เช็คก่อนว่าเป็นเลขไหม กันคนมั่วใส่ text มา
+        if (!id || isNaN(Number(id))) {
+            throw new AppError("Invalid Order ID", 400);
+        }
+        // เรียก Service 
+        const order = await adminOrderService.getOrderDetails(Number(id));
+
+        res.status(200).json({
+            success: true,
+            data: order
+        });
+
+    } catch (error) {
+        next(error); // ส่งต่อให้ Global Error Handler
     }
 };
 export const getInspectingOrdersController = async (req: Request, res: Response, next: NextFunction) => {

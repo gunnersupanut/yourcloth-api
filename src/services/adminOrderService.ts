@@ -99,74 +99,162 @@ export const adminOrderService = {
             hasMore: result.total > (page * limit)
         };
     },
-    getInspectingOrders: async () => {
-        // ดึงข้อมูลดิบ
-        const rawOrders = await adminOrderRepository.getInspectingOrdersWithSlips();
+    getOrderDetails: async (orderId: number) => {
+        const rows = await orderRepository.findOrderById(orderId);
+        if (!rows || rows.length === 0) {
+            throw new AppError("Order not found", 404);
+        }
 
-        if (!rawOrders) return [];
+        // จัดรูป
+        const firstRow = rows[0];
 
-        // ใช้ Reduce จัดกลุ่ม (Grouping)
-        const groupedOrders = rawOrders.reduce((acc: any[], row: any) => {
-            // หาว่ามี order_id นี้ในตะกร้าหรือยัง?
-            let order = acc.find(o => o.orderId === row.order_id);
+        // คำนวณราคาสินค้ารวม (Sum net_total ของสินค้าทุกชิ้น)
+        const itemsTotal = rows.reduce((sum: number, row: any) => sum + Number(row.net_total), 0);
+        // รวมค่าส่งเข้าไปด้วย
+        const grandTotal = itemsTotal + Number(firstRow.shipping_cost || 0);
 
-            if (!order) {
-                // ถ้ายังไม่มี ให้สร้าง "กล่อง" Order ใหม่รอไว้
-                order = {
-                    orderId: row.order_id,
-                    userId: row.user_id,
-                    status: row.status,
-                    orderedAt: row.ordered_at,
+        // --- เตรียมตัวแปรเสริม ---
+        let rejectionReason = null;
+        let parcelDetail = null;
+        let problemDetail = null;
 
-                    // คำนวณเงินเริ่มต้น (เอาราคาค่าส่งมาตั้งต้นก่อน หรือจะเริ่ม 0 ก็ได้)
-                    totalPrice: 0,
-                    shippingCost: Number(row.shipping_cost || 0),
-
-                    //  (สลิป)
-                    slip: {
-                        url: row.image_url,
-                        path: row.file_path
-                    },
-
-                    // ข้อมูลลูกค้า
-                    customer: {
-                        name: row.receiver_name,
-                        phone: row.receiver_phone,
-                        address: row.address
-                    },
-
-                    items: [] // เตรียมถาดใส่สินค้า
-                };
-
-                // บวกค่าส่งเข้าไปในยอดรวมก่อนเลย (ถ้า Logic ร้านนายรวมค่าส่งนะ)
-                order.totalPrice += order.shippingCost;
-
-                acc.push(order);
+        //  ดึงเหตุผลการปฏิเสธ 
+        if (firstRow.status === 'PENDING') {
+            const latestRejection = await orderRepository.findLatestRejectionByOrderId(orderId);
+            if (latestRejection) {
+                rejectionReason = latestRejection.reason;
             }
+        }
 
-            // --- คำนวณราคาสินค้าชิ้นนี้ ---
-            const price = Number(row.price_snapshot || 0);
-            const quantity = row.quantity || 1;
-            const lineTotal = price * quantity;
+        //  ดึงข้อมูลขนส่ง
+        if (['SHIPPING', 'COMPLETE', 'CANCEL'].includes(firstRow.status)) {
+            const parcelDetailData = await orderRepository.findParcelNumberByOrderId(orderId);
+            if (parcelDetailData) {
+                parcelDetail = parcelDetailData;
+            }
+        }
 
-            // บวกทบเข้าไปในยอดรวมบิล Grand Total
-            order.totalPrice += lineTotal;
+        // ดึงข้อมูลแจ้งปัญหา 
+        if (firstRow.status === 'CANCEL') {
+            const problemData = await orderRepository.findProblemByOrderId(orderId);
+            if (problemData) {
+                problemDetail = {
+                    description: problemData.problem_text,
+                    attachments: problemData.attachments, // รูป/วิดีโอ
+                    reportedAt: problemData.created_at
+                };
+            }
+        }
 
-            // ยัดสินค้าลงใน items ของ Order นั้นๆ
-            order.items.push({
-                name: row.product_name_snapshot,
-                itemId: row.id,
+        // Return 
+        const orderData = {
+            orderId: firstRow.order_id,
+            userId: firstRow.user_id, // Admin อาจจะต้องใช้ user_id เผื่อลิงก์ไปหน้า profile ลูกค้า
+            status: firstRow.status,
+            orderedAt: firstRow.ordered_at, 
+
+            // ข้อมูลการเงิน
+            paymentMethod: firstRow.payment_method, 
+            shippingMethod: firstRow.shipping_method,
+            shippingCost: Number(firstRow.shipping_cost || 0),
+            totalAmount: grandTotal, // ยอดสุทธิ (ของ + ส่ง)
+            itemCount: rows.length,
+
+            // ข้อมูลเสริม
+            rejectionReason,
+            parcelDetail,
+            problemDetail,
+
+            // ข้อมูลผู้รับ
+            receiver: {
+                name: firstRow.receiver_name,
+                phone: firstRow.receiver_phone,
+                address: firstRow.address
+            },
+
+            // รายการสินค้า
+            items: rows.map((row: any) => ({
+                id: row.id, // item id (เผื่อใช้)
                 variantId: row.product_variants_id,
-                price: price,
-                quantity: quantity,
-                lineTotal: lineTotal
-            });
+                name: row.product_name_snapshot,
+                description: row.description,
+                price: Number(row.price_snapshot),
+                quantity: row.quantity,
+                lineTotal: Number(row.net_total),
+                image: row.image_url
+            }))
+        };
 
-            return acc;
-        }, []);
-
-        return groupedOrders;
+        return orderData;
     },
+getInspectingOrders: async () => {
+    // ดึงข้อมูลดิบ
+    const rawOrders = await adminOrderRepository.getInspectingOrdersWithSlips();
+
+    if (!rawOrders) return [];
+
+    // ใช้ Reduce จัดกลุ่ม (Grouping)
+    const groupedOrders = rawOrders.reduce((acc: any[], row: any) => {
+        // หาว่ามี order_id นี้ในตะกร้าหรือยัง?
+        let order = acc.find(o => o.orderId === row.order_id);
+
+        if (!order) {
+            // ถ้ายังไม่มี ให้สร้าง "กล่อง" Order ใหม่รอไว้
+            order = {
+                orderId: row.order_id,
+                userId: row.user_id,
+                status: row.status,
+                orderedAt: row.ordered_at,
+
+                // คำนวณเงินเริ่มต้น (เอาราคาค่าส่งมาตั้งต้นก่อน หรือจะเริ่ม 0 ก็ได้)
+                totalPrice: 0,
+                shippingCost: Number(row.shipping_cost || 0),
+
+                //  (สลิป)
+                slip: {
+                    url: row.image_url,
+                    path: row.file_path
+                },
+
+                // ข้อมูลลูกค้า
+                customer: {
+                    name: row.receiver_name,
+                    phone: row.receiver_phone,
+                    address: row.address
+                },
+
+                items: [] // เตรียมถาดใส่สินค้า
+            };
+
+            // บวกค่าส่งเข้าไปในยอดรวมก่อนเลย (ถ้า Logic ร้านนายรวมค่าส่งนะ)
+            order.totalPrice += order.shippingCost;
+
+            acc.push(order);
+        }
+
+        // --- คำนวณราคาสินค้าชิ้นนี้ ---
+        const price = Number(row.price_snapshot || 0);
+        const quantity = row.quantity || 1;
+        const lineTotal = price * quantity;
+
+        // บวกทบเข้าไปในยอดรวมบิล Grand Total
+        order.totalPrice += lineTotal;
+
+        // ยัดสินค้าลงใน items ของ Order นั้นๆ
+        order.items.push({
+            name: row.product_name_snapshot,
+            itemId: row.id,
+            variantId: row.product_variants_id,
+            price: price,
+            quantity: quantity,
+            lineTotal: lineTotal
+        });
+
+        return acc;
+    }, []);
+
+    return groupedOrders;
+},
     moveOrderToPacking: async (orderId: number, adminName: string) => {
         const client = await pool.connect();
         try {
@@ -233,165 +321,165 @@ export const adminOrderService = {
             client.release();
         }
     },
-    rejectPaymentToPending: async (orderId: number, adminName: string, reason: string) => {
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            // ดึงข้อมูล Order ปัจจุบัน (จาก Inspecting)
-            const orderDetail = await orderRepository.findOrderById(orderId, client);
-            if (!orderDetail || orderDetail.length === 0) {
-                throw new AppError(`Order not found in inspecting status`, 404);
+        rejectPaymentToPending: async (orderId: number, adminName: string, reason: string) => {
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                // ดึงข้อมูล Order ปัจจุบัน (จาก Inspecting)
+                const orderDetail = await orderRepository.findOrderById(orderId, client);
+                if (!orderDetail || orderDetail.length === 0) {
+                    throw new AppError(`Order not found in inspecting status`, 404);
+                }
+                if (orderDetail[0].status !== 'INSPECTING') {
+                    throw new AppError('Order is not in inspecting status', 400);
+                }
+                // ---จัดรูปข้อมูล
+                const header = orderDetail[0];
+                // จัดรูปลงตาราง order_rejections
+                const rejectionPayload: CreateRejectionPayLoad = {
+                    orderId,
+                    userId: header.user_id,
+                    reason,
+                    adminName
+                }
+                // ---บันทึกเหตุผลลงตาราง order_rejections
+                await adminOrderRepository.createRejection(rejectionPayload, client)
+                // ---เตรียมย้ายกลับ Pending
+                // จัดรูป address
+                const addressPayload = {
+                    recipient_name: header.receiver_name,
+                    phone: header.receiver_phone,
+                    address: header.address
+                };
+                // จัดรูป items
+                const readyItems = orderDetail.map(row => ({
+                    product_name: row.product_name_snapshot,
+                    variant_id: row.product_variants_id,
+                    quantity: row.quantity,
+                    price_snapshot: row.price_snapshot
+                }));
+                // Bulk Insert ลง order_pending
+                await orderRepository.createOrderGenericBulk(
+                    'order_pending',   // Parameter 1: ชื่อตาราง
+                    header.order_id,      // Parameter 2: ID
+                    header.user_id,            // Parameter 3: User
+                    addressPayload,   // Parameter 4: Address Data
+                    header.payment_method,     // Parameter 5: จ่ายไง 
+                    header.shipping_method,    // Parameter 6: ส่งไง 
+                    header.shipping_cost,      // Parameter 7: ค่าส่ง
+                    readyItems,        // Parameter 8: Items
+                    header.ordered_at,   // Parameter 9: OrderAt
+                    client             // Parameter 10: Client
+                );
+                // ---สร้าง Log
+                await orderRepository.createOrderLog(
+                    orderId,
+                    'ORDER_REJECTED',
+                    `ADMIN ${adminName}`,
+                    `Payment rejected, Reason: ${reason}`,
+                    client
+                );
+                // ---ลบออกจาก Inspecting
+                await orderRepository.deleteOrderGeneric(
+                    "order_inspecting",
+                    orderId,
+                    header.user_id,
+                    client
+                );
+                //  ---ลบรูป slips เก่า
+                const deletedSlips = await orderRepository.deleteOrderSlips(orderId, client);
+                // เช็คว่าลบเจอไหม? (ถ้า deletedSlips มีของ = เคยมีสลิป)
+                if (deletedSlips && deletedSlips.length > 0) {
+                    const slip = deletedSlips[0]; // เอาตัวแรกมา
+                    // เอา file_path ไปลบรูปใน Cloud
+                    if (slip.file_path) {
+                        deleteFileFromCloudinary(slip.file_path, 'image');
+                    }
+                }
+                // commit
+                await client.query('COMMIT');
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release();
             }
-            if (orderDetail[0].status !== 'INSPECTING') {
-                throw new AppError('Order is not in inspecting status', 400);
-            }
-            // ---จัดรูปข้อมูล
-            const header = orderDetail[0];
-            // จัดรูปลงตาราง order_rejections
-            const rejectionPayload: CreateRejectionPayLoad = {
-                orderId,
-                userId: header.user_id,
-                reason,
-                adminName
-            }
-            // ---บันทึกเหตุผลลงตาราง order_rejections
-            await adminOrderRepository.createRejection(rejectionPayload, client)
-            // ---เตรียมย้ายกลับ Pending
-            // จัดรูป address
-            const addressPayload = {
-                recipient_name: header.receiver_name,
-                phone: header.receiver_phone,
-                address: header.address
-            };
-            // จัดรูป items
-            const readyItems = orderDetail.map(row => ({
-                product_name: row.product_name_snapshot,
-                variant_id: row.product_variants_id,
-                quantity: row.quantity,
-                price_snapshot: row.price_snapshot
-            }));
-            // Bulk Insert ลง order_pending
-            await orderRepository.createOrderGenericBulk(
-                'order_pending',   // Parameter 1: ชื่อตาราง
-                header.order_id,      // Parameter 2: ID
-                header.user_id,            // Parameter 3: User
-                addressPayload,   // Parameter 4: Address Data
-                header.payment_method,     // Parameter 5: จ่ายไง 
-                header.shipping_method,    // Parameter 6: ส่งไง 
-                header.shipping_cost,      // Parameter 7: ค่าส่ง
-                readyItems,        // Parameter 8: Items
-                header.ordered_at,   // Parameter 9: OrderAt
-                client             // Parameter 10: Client
-            );
-            // ---สร้าง Log
-            await orderRepository.createOrderLog(
-                orderId,
-                'ORDER_REJECTED',
-                `ADMIN ${adminName}`,
-                `Payment rejected, Reason: ${reason}`,
-                client
-            );
-            // ---ลบออกจาก Inspecting
-            await orderRepository.deleteOrderGeneric(
-                "order_inspecting",
-                orderId,
-                header.user_id,
-                client
-            );
-            //  ---ลบรูป slips เก่า
-            const deletedSlips = await orderRepository.deleteOrderSlips(orderId, client);
-            // เช็คว่าลบเจอไหม? (ถ้า deletedSlips มีของ = เคยมีสลิป)
-            if (deletedSlips && deletedSlips.length > 0) {
-                const slip = deletedSlips[0]; // เอาตัวแรกมา
-                // เอา file_path ไปลบรูปใน Cloud
-                if (slip.file_path) {
-                    deleteFileFromCloudinary(slip.file_path, 'image');
+        },
+            moveOrderToShipping: async (orderId: number, adminName: string, shipping: ShippingDetailPayload) => {
+                const client = await pool.connect();
+                try {
+                    await client.query('BEGIN');
+                    // ดึงข้อมูล Order ปัจจุบัน (จาก PACKING)
+                    const orderDetail = await orderRepository.findOrderById(orderId, client);
+                    // เช็คข้อมูล
+                    // ถ้าไม่เจอ
+                    if (!orderDetail || orderDetail.length === 0) {
+                        throw new AppError(`Order not found in packing status`, 404);
+                    }
+                    // ถ้าเจอแต่ผิดสถานะ
+                    if (orderDetail[0].status !== 'PACKING') {
+                        throw new AppError('Order is not in packing status', 400);
+                    }
+                    // ---จัดรูปข้อมูล
+                    const header = orderDetail[0];
+                    // จัดรูปลงตาราง parcel_numbers
+                    const pacelNumberPayload: CreateParcelNumberPayLoad = {
+                        orderId,
+                        userId: header.user_id,
+                        shippingCarrier: shipping.shippingCarrier,
+                        parcelNumber: shipping.parcelNumber
+                    }
+                    // บันทึกข้อมูลการจัดส่งลง parcel_numbers
+                    await adminOrderRepository.createParcelNumber(pacelNumberPayload, client)
+                    // ---เตรียมย้ายข้อมูลไป order_shipping
+                    // จัดรูป address
+                    const addressPayload = {
+                        recipient_name: header.receiver_name,
+                        phone: header.receiver_phone,
+                        address: header.address
+                    };
+                    // จัดรูป items
+                    const readyItems = orderDetail.map(row => ({
+                        product_name: row.product_name_snapshot,
+                        variant_id: row.product_variants_id,
+                        quantity: row.quantity,
+                        price_snapshot: row.price_snapshot
+                    }));
+                    // Bulk Insert ลง order_shipping
+                    await orderRepository.createOrderGenericBulk(
+                        'order_shipping',   // Parameter 1: ชื่อตาราง
+                        header.order_id,      // Parameter 2: ID
+                        header.user_id,            // Parameter 3: User
+                        addressPayload,   // Parameter 4: Address Data
+                        header.payment_method,     // Parameter 5: จ่ายไง 
+                        header.shipping_method,    // Parameter 6: ส่งไง 
+                        header.shipping_cost,      // Parameter 7: ค่าส่ง
+                        readyItems,        // Parameter 8: Items
+                        header.ordered_at,   // Parameter 9: OrderAt
+                        client             // Parameter 10: Client
+                    );
+                    // ---สร้าง Log
+                    await orderRepository.createOrderLog(
+                        orderId,
+                        'ORDER_SHIPPING',
+                        `ADMIN ${adminName}`,
+                        `Order is shipping by ${shipping.shippingCarrier},Parcel Number is ${shipping.parcelNumber}.`,
+                        client
+                    );
+                    // ---ลบออกจาก order_packing
+                    await orderRepository.deleteOrderGeneric(
+                        "order_packing",
+                        orderId,
+                        header.user_id,
+                        client
+                    );
+                    // commit
+                    await client.query('COMMIT');
+                } catch (error) {
+                    await client.query('ROLLBACK');
+                    throw error;
+                } finally {
+                    client.release();
                 }
             }
-            // commit
-            await client.query('COMMIT');
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
-        }
-    },
-    moveOrderToShipping: async (orderId: number, adminName: string, shipping: ShippingDetailPayload) => {
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            // ดึงข้อมูล Order ปัจจุบัน (จาก PACKING)
-            const orderDetail = await orderRepository.findOrderById(orderId, client);
-            // เช็คข้อมูล
-            // ถ้าไม่เจอ
-            if (!orderDetail || orderDetail.length === 0) {
-                throw new AppError(`Order not found in packing status`, 404);
-            }
-            // ถ้าเจอแต่ผิดสถานะ
-            if (orderDetail[0].status !== 'PACKING') {
-                throw new AppError('Order is not in packing status', 400);
-            }
-            // ---จัดรูปข้อมูล
-            const header = orderDetail[0];
-            // จัดรูปลงตาราง parcel_numbers
-            const pacelNumberPayload: CreateParcelNumberPayLoad = {
-                orderId,
-                userId: header.user_id,
-                shippingCarrier: shipping.shippingCarrier,
-                parcelNumber: shipping.parcelNumber
-            }
-            // บันทึกข้อมูลการจัดส่งลง parcel_numbers
-            await adminOrderRepository.createParcelNumber(pacelNumberPayload, client)
-            // ---เตรียมย้ายข้อมูลไป order_shipping
-            // จัดรูป address
-            const addressPayload = {
-                recipient_name: header.receiver_name,
-                phone: header.receiver_phone,
-                address: header.address
-            };
-            // จัดรูป items
-            const readyItems = orderDetail.map(row => ({
-                product_name: row.product_name_snapshot,
-                variant_id: row.product_variants_id,
-                quantity: row.quantity,
-                price_snapshot: row.price_snapshot
-            }));
-            // Bulk Insert ลง order_shipping
-            await orderRepository.createOrderGenericBulk(
-                'order_shipping',   // Parameter 1: ชื่อตาราง
-                header.order_id,      // Parameter 2: ID
-                header.user_id,            // Parameter 3: User
-                addressPayload,   // Parameter 4: Address Data
-                header.payment_method,     // Parameter 5: จ่ายไง 
-                header.shipping_method,    // Parameter 6: ส่งไง 
-                header.shipping_cost,      // Parameter 7: ค่าส่ง
-                readyItems,        // Parameter 8: Items
-                header.ordered_at,   // Parameter 9: OrderAt
-                client             // Parameter 10: Client
-            );
-            // ---สร้าง Log
-            await orderRepository.createOrderLog(
-                orderId,
-                'ORDER_SHIPPING',
-                `ADMIN ${adminName}`,
-                `Order is shipping by ${shipping.shippingCarrier},Parcel Number is ${shipping.parcelNumber}.`,
-                client
-            );
-            // ---ลบออกจาก order_packing
-            await orderRepository.deleteOrderGeneric(
-                "order_packing",
-                orderId,
-                header.user_id,
-                client
-            );
-            // commit
-            await client.query('COMMIT');
-        } catch (error) {
-            await client.query('ROLLBACK');
-            throw error;
-        } finally {
-            client.release();
-        }
-    }
 }
