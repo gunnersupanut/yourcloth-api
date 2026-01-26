@@ -67,7 +67,7 @@ export const orderRepository = {
                 orderAt
             );
 
-            paramIndex += 13;// ขยับ Index ทีละ 10 ช่อง
+            paramIndex += 14;// ขยับ Index ทีละ 10 ช่อง
         });
 
         const sql = `
