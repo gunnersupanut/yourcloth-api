@@ -24,4 +24,8 @@ export const adminRepository = {
         const result = await pool.query(sql, [username]);
         return result.rows[0];
     },
+    updateLastLogin: async (id: number) => {
+        const query = `UPDATE admins SET last_login = NOW() WHERE id = $1`;
+        await pool.query(query, [id]);
+    }
 }

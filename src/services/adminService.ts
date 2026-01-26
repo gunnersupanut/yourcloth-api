@@ -32,6 +32,8 @@ export const adminService = {
             process.env.JWT_SECRET as string,
             { expiresIn: '1d' }
         );
+        // อัพเดต LastLogin
+        await adminRepository.updateLastLogin(admin.id);
         return { status: "SUCCESS", token: token, id: admin.id, name: admin.admin_name }
     }
 }
