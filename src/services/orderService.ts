@@ -214,11 +214,14 @@ export const orderService = {
             await productRepository.decreaseStock(readyItems, client);
             // ลบตะกร้าถ้ามาจากตระกร้า
             if (cartItemIds) await cartService.deleteSelectedCarts(cartItemIds, userId);
+            // สร้าง Log
+            // + ราคาค่่าส่งไปใน grandTotal ด้วย
+            const total = grandTotal + shippingCost;
             await orderRepository.createOrderLog(
                 orderGroupId,              // เลข Order ID
                 'ORDER_CREATED',           // Action Type
                 `USER ${userName}`, // Actor (เอาชื่อคนรับ หรือ username จาก token ก็ได้)
-                `User created order via Checkout (Total: ${grandTotal} THB)`, // Description
+                `User created order via Checkout (Total: ${total} THB)`, // Description
                 client                     // ส่ง client ตัวเดิมไป (ให้มัน Commit พร้อมกัน)
             );
             await client.query('COMMIT');
@@ -300,11 +303,12 @@ export const orderService = {
             // สร้าง order slips
             await orderRepository.createOrderSlips(orderId, imageObj, client)
             // สร้าง order logs
+            const total = grandTotal + Number(header.shipping_cost)
             await orderRepository.createOrderLog(
                 orderId,              // เลข Order ID
                 'ORDER_PAID',           // Action Type
                 `USER ${userName}`, // Actor (เอาชื่อคนรับ หรือ username จาก token ก็ได้)
-                `User pay via (Total: ${grandTotal} THB)`, // Description
+                `User pay via (Total: ${total} THB)`, // Description
                 client                     // ส่ง client ตัวเดิมไป (ให้มัน Commit พร้อมกัน)
             );
             // ลบ order ออกจาก order_pending

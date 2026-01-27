@@ -118,6 +118,10 @@ export const adminOrderService = {
         let parcelDetail = null;
         let problemDetail = null;
         let slip = null
+        let orderLog = null
+        // ดึง order log
+        const orderLogData = await adminOrderRepository.getOrderLog(orderId);
+        if (orderLogData) orderLog = orderLogData
         //  ดึงเหตุผลการปฏิเสธ 
         if (firstRow.status === 'PENDING') {
             const latestRejection = await orderRepository.findLatestRejectionByOrderId(orderId);
@@ -136,7 +140,6 @@ export const adminOrderService = {
                 parcelDetail = parcelDetailData;
             }
         }
-
         // ดึงข้อมูลแจ้งปัญหา 
         if (firstRow.status === 'CANCEL') {
             const problemData = await orderRepository.findProblemByOrderId(orderId);
@@ -185,7 +188,8 @@ export const adminOrderService = {
                 quantity: row.quantity,
                 lineTotal: Number(row.net_total),
                 image: row.image_url
-            }))
+            })),
+            orderLog
         };
 
         return orderData;

@@ -163,13 +163,12 @@ export const adminOrderRepository = {
                 cteOrderBy = 'ORDER BY MAX(ordered_at) DESC';
                 finalOrderBy = 'ORDER BY t1.ordered_at DESC';
         }
-
-        // --- 3. Count Query ---
+        // --- Count Query ---
         const countSql = `SELECT COUNT(DISTINCT order_id) as total FROM view_admin_orders ${whereClause}`;
         const countRes = await pool.query(countSql, values);
         const totalOrders = parseInt(countRes.rows[0].total || '0');
 
-        // --- 4. Main Query (CTE + Grand Total) ---
+        // --- Main Query (CTE + Grand Total) ---
         const limitIndex = values.length + 1;
         const offsetIndex = values.length + 2;
 
@@ -231,6 +230,20 @@ export const adminOrderRepository = {
 
         const result = await pool.query(sql);
 
+        return result.rows;
+    },
+    getOrderLog: async (orderId: number) => {
+        const sql = `
+        SELECT
+        action_type,
+        description,
+        actor_name,
+        created_at
+        FROM order_logs
+        WHERE order_id = $1
+        ORDER BY created_at ASC;
+        `
+        const result = await pool.query(sql, [orderId]);
         return result.rows;
     },
     getInspectingOrdersWithSlips: async () => {
