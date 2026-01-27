@@ -122,3 +122,24 @@ export const shippingOrderController = async (req: Request, res: Response, next:
         next(error);
     }
 };
+export const adminConfirmReceivedController = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        const adminName = (req.user as CustomAdminJwtPayload).username;
+        const orderId = Number(req.params.orderId);
+        // Validation 
+        if (isNaN(orderId)) {
+            throw new AppError("Invalid Order ID", 400);
+        }
+        // เรียก Service
+        await adminOrderService.moveToComplete(orderId, adminName);
+        res.status(200).json({
+            message: "Confirm recived successfully."
+        });
+    } catch (error) {
+        next(error);
+    }
+};
