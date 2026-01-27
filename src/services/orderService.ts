@@ -27,6 +27,7 @@ export const orderService = {
         let rejectionReason = null;
         let parcelDetail = null;
         let problemDetail = null;
+        let cancelledBy = null;
         // --- ดึงเหตุผลการปฏิเสธ ---
         // เช็คก่อนว่าสถานะเป็น PENDING ไหม? (ถ้าใช่ แปลว่าอาจจะโดนดีดกลับมา)
         if (firstRow.status === 'PENDING') {
@@ -54,6 +55,20 @@ export const orderService = {
                 };
             }
         }
+        if (['CANCEL', 'REJECTED'].includes(firstRow.status)) {
+            // เรียก Repo ที่เราเพิ่งสร้าง
+            const cancelLog = await orderRepository.findLatestLogByAction(
+                orderId,
+                ['ORDER_CANCEL', 'ORDER_REJECT'], // Action ที่เราอยากหา
+
+            );
+
+            if (cancelLog) {
+                // เช็คจากชื่อ Actor ว่าเป็น ADMIN หรือ USER
+                // สมมติ Log "ADMIN Gunner" หรือ "USER CustomerName"
+                cancelledBy = cancelLog.actor_name.toUpperCase().includes('ADMIN') ? 'ADMIN' : 'USER';
+            }
+        }
         const orderData = {
             orderId: firstRow.order_id,
             status: firstRow.status,
@@ -63,6 +78,7 @@ export const orderService = {
             shippingMethod: firstRow.shipping_method,
             parcelDetail,
             problemDetail,
+            cancelledBy,
             orderedAt: firstRow.order_at,
             // สรุปยอดเงิน
             totalAmount: grandTotal,

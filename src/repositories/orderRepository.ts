@@ -1,5 +1,5 @@
 import pool from '../config/db';
-import { PoolClient } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { AppError } from '../utils/AppError';
 import { ImageObj } from '../type/orderTypes';
 
@@ -295,6 +295,23 @@ export const orderRepository = {
 
         const result = await pool.query(sql, [orderId]);
         return result.rows[0];
+    },
+    findLatestLogByAction: async (
+        orderId: number,
+        actionTypes: string[], // รับเป็น Array เผื่อเช็คทั้ง CANCEL และ REJECT
+        client?: PoolClient // รองรับทั้ง Client และ Pool
+    ) => {
+        const sql = `
+        SELECT actor_name, action_type, created_at
+        FROM order_logs
+        WHERE order_id = $1 
+        AND action_type = ANY($2::text[]) -- เช็คว่าตรงกับ action ไหนบ้าง
+        ORDER BY created_at DESC 
+        LIMIT 1
+    `;
+        const query = client || pool
+        const { rows } = await query.query(sql, [orderId, actionTypes]);
+        return rows[0] || null;
     },
     deleteOrderGeneric: async (tableName: string,
         orderGroupId: number, userId: number, client: PoolClient) => {
