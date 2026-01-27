@@ -260,14 +260,15 @@ export const orderRepository = {
         const result = await pool.query(sql, [orderId]);
         return result.rows[0] || null;
     },
-    findOrderSlips: async (orderId: number, client: PoolClient) => {
+    findOrderSlips: async (orderId: number, client?: PoolClient) => {
         const sql = `
         SELECT image_url, file_path
         FROM order_slips 
         WHERE order_id = $1 
         LIMIT 1
     `;
-        const result = await client.query(sql, [orderId]);
+        const query = client || pool
+        const result = await query.query(sql, [orderId]);
         return result.rows[0] || null;
     },
     // ดึงข้อมูลปัญหา + รูปภาพ
@@ -293,7 +294,7 @@ export const orderRepository = {
     `;
 
         const result = await pool.query(sql, [orderId]);
-        return result.rows[0]; 
+        return result.rows[0];
     },
     deleteOrderGeneric: async (tableName: string,
         orderGroupId: number, userId: number, client: PoolClient) => {
