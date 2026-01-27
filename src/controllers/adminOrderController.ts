@@ -143,3 +143,40 @@ export const adminConfirmReceivedController = async (
         next(error);
     }
 };
+export const adminCancelOrderController = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        const { id } = req.params; // รับ Order ID จาก URL
+        const { reason } = req.body; // รับเหตุผลจาก Modal
+
+        // เช็คความถูกต้องของข้อมูล
+        if (!id || isNaN(Number(id))) {
+            throw new AppError("Invalid Order ID", 400);
+        }
+        if (!reason || !reason.trim()) {
+            throw new AppError("Cancellation reason is required!", 400);
+        }
+
+        // ดึงชื่อ Admin จาก Token (Middleware แปะไว้ให้ใน req.user)
+        const adminName = (req.user as CustomAdminJwtPayload).username;
+
+        // เรียก Service
+        const result = await adminOrderService.cancelOrderByAdmin(
+            Number(id),
+            adminName,
+            reason
+        );
+
+        res.status(200).json({
+            success: true,
+            message: result.message
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+

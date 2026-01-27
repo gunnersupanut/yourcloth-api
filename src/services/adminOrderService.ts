@@ -560,4 +560,92 @@ export const adminOrderService = {
             client.release();
         }
     },
+    cancelOrderByAdmin: async (orderId: number, adminName: string, reason: string) => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            //  ดึงข้อมูล Order
+            const orderDetail = await orderRepository.findOrderById(orderId);
+
+            if (!orderDetail || orderDetail.length === 0) {
+                throw new AppError(`Order not found`, 404);
+            }
+
+            const header = orderDetail[0];
+            const currentStatus = header.status;
+
+            // หาว่าตอนนี้ของอยู่ตารางไหน 
+            // Admin ต้อง Cancel ได้ทุก State (Pending -> Shipping)
+            let sourceTable = '';
+            switch (currentStatus) {
+                case 'PENDING': sourceTable = 'order_pending'; break;
+                case 'INSPECTING': sourceTable = 'order_inspecting'; break;
+                case 'PACKING': sourceTable = 'order_packing'; break;
+                case 'SHIPPING': sourceTable = 'order_shipping'; break;
+                case 'COMPLETE':
+                case 'CANCEL':
+                    throw new AppError(`Cannot cancel order that is already ${currentStatus}`, 400);
+                default:
+                    throw new AppError(`Unknown order status: ${currentStatus}`, 400);
+            }
+
+            //  จัดเตรียมข้อมูล
+            const addressPayload = {
+                recipient_name: header.receiver_name,
+                phone: header.receiver_phone,
+                address: header.address
+            };
+
+            const readyItems = orderDetail.map(row => ({
+                product_name: row.product_name_snapshot,
+                variant_id: row.product_variants_id,
+                quantity: row.quantity,
+                price_snapshot: row.price_snapshot
+            }));
+
+            // ย้ายไปตาราง order_cancel (Bulk Insert)
+            await orderRepository.createOrderGenericBulk(
+                'order_cancel',      
+                header.order_id,
+                header.user_id,
+                addressPayload,
+                header.payment_method,
+                header.shipping_method,
+                header.shipping_cost,
+                readyItems,
+                header.ordered_at,
+                client
+            );
+
+            // บันทึกเหตุผล 
+            await orderRepository.createOrderProblem(orderId, reason, client);
+
+            // สร้าง Log (ระบุว่าเป็น Admin ทำ)
+            await orderRepository.createOrderLog(
+                orderId,
+                'ORDER_CANCEL',
+                `ADMIN ${adminName}`, // Actor: ระบุชื่อ Admin
+                `Admin Force Cancel. Reason: ${reason}`, // Description
+                client
+            );
+
+            // ลบ Order ออกจากตารางเดิม (ตาม sourceTable ที่หาไว้ข้อ 3)
+            await orderRepository.deleteOrderGeneric(
+                sourceTable,
+                orderId,
+                header.user_id,
+                client
+            );
+
+            await client.query('COMMIT');
+            return { success: true, message: `Order #${orderId} cancelled by Admin` };
+
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
 }
