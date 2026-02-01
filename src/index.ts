@@ -54,6 +54,10 @@ import orderRouter from './routes/order'
 import { errorHandler } from './middleware/errorHandler';
 app.use("/api/v1/orders", orderRouter)
 
+// MasterData
+import masterRouter from './routes/master'
+app.use("/api/v1/master", masterRouter)
+
 // **--Admin--**
 import adminAuthRouter from './routes/adminAuthRouter'
 app.use("/api/v1/admin/auth", adminAuthRouter)

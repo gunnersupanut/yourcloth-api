@@ -9,5 +9,13 @@ export const masterRepository = {
     getSizes: async () => {
         const result = await pool.query('SELECT id, name FROM sizes ORDER BY id ASC');
         return result.rows;
-    }
+    },
+    getGenders: async () => {
+        const result = await pool.query('SELECT id, name FROM genders ORDER BY id ASC');
+        return result.rows;
+    },
+    getCategoris: async () => {
+        const result = await pool.query('SELECT id, name FROM categories ORDER BY id ASC');
+        return result.rows;
+    },
 };
