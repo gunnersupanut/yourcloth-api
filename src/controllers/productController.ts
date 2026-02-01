@@ -22,7 +22,15 @@ export const getAllProductController = async (req: Request, res: Response, next:
         next(error);
     }
 }
-
+export const getAdminProductById = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const id = Number(req.params.id);
+        const result = await productService.getAdminById(id);
+        res.json(result);
+    } catch (error) {
+        next(error);
+    }
+}
 interface getProductReq {
     id: number;
 }
@@ -90,4 +98,14 @@ export const getAdminProductsContoller = async (req: Request, res: Response, nex
         next(error);
     }
 };
+export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const id = Number(req.params.id);
+        const result = await productService.update(id, req.body);
+        res.json({ success: true, data: result });
+    } catch (error) {
+        next(error);
+    }
+};
+
 

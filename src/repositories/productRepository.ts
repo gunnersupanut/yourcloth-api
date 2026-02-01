@@ -11,8 +11,8 @@ export const productRepository = {
 
             // Insert ลงตารางแม่ (Products)
             const insertProductSql = `
-                INSERT INTO products (product_name, description, image_url, category_id, gender_id)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO products (product_name, description, image_url, file_path, category_id, gender_id)
+                VALUES ($1, $2, $3, $4, $5, $6)
                 RETURNING id
             `;
 
@@ -20,6 +20,7 @@ export const productRepository = {
                 productData.product_name,
                 productData.description,
                 productData.image_url,
+                productData.file_path,
                 productData.category_id,
                 productData.gender_id
             ]);
@@ -116,35 +117,6 @@ export const productRepository = {
         const result = await pool.query(sql)
         return result.rows;
     },
-    getAdminProducts: async () => {
-        const sql = `
-        SELECT
-            pd.id, 
-            pd.product_name, 
-            pd.image_url,
-            c.name AS category,
-            gd.name AS gender,
-            MIN(pv.price) AS min_price,
-            MAX(pv.price) AS max_price,
-
-            COALESCE(SUM(pv.stock_quantity), 0) AS total_stock,
-            CASE 
-                WHEN SUM(pv.stock_quantity) > 0 THEN 'Active'
-                ELSE 'Out of Stock'
-            END AS calculated_status
-
-        FROM products AS pd 
-        LEFT JOIN categories AS c ON pd.category_id = c.id
-        LEFT JOIN genders AS gd ON pd.gender_id = gd.id
-        LEFT JOIN product_variants AS pv ON pv.product_id = pd.id
-        
-        GROUP BY pd.id, c.name, gd.name
-        ORDER BY pd.id DESC; 
-    `;
-
-        const result = await pool.query(sql);
-        return result.rows;
-    },
     getById: async (product_id: number) => {
         const sql =
             `
@@ -204,6 +176,69 @@ export const productRepository = {
         const result = await pool.query(sql, [product_id])
         return result.rows[0];
     },
+    getAdminProducts: async () => {
+        const sql = `
+        SELECT
+            pd.id, 
+            pd.product_name, 
+            pd.image_url,
+            pd.file_path,
+            c.name AS category,
+            gd.name AS gender,
+            MIN(pv.price) AS min_price,
+            MAX(pv.price) AS max_price,
+
+            COALESCE(SUM(pv.stock_quantity), 0) AS total_stock,
+            CASE 
+                WHEN SUM(pv.stock_quantity) > 0 THEN 'Active'
+                ELSE 'Out of Stock'
+            END AS calculated_status
+
+        FROM products AS pd 
+        LEFT JOIN categories AS c ON pd.category_id = c.id
+        LEFT JOIN genders AS gd ON pd.gender_id = gd.id
+        LEFT JOIN product_variants AS pv ON pv.product_id = pd.id
+        
+        GROUP BY pd.id, c.name, gd.name
+        ORDER BY pd.id DESC; 
+    `;
+
+        const result = await pool.query(sql);
+        return result.rows;
+    },
+    getAdminById: async (productId: number) => {
+        const sql = `
+            SELECT
+                pd.id, 
+                pd.product_name, 
+                pd.description, 
+                pd.image_url,
+                pd.file_path,   
+                pd.category_id,   
+                pd.gender_id,    
+                
+                (
+                    SELECT JSON_AGG(
+                        JSON_BUILD_OBJECT(
+                            'variant_id', v.id,
+                            'color_id', v.color_id,
+                            'size_id', v.size_id,    
+                            'price', v.price,
+                            'stock_quantity', v.stock_quantity
+                        ) ORDER BY v.id ASC
+                    )
+                    FROM product_variants v
+                    WHERE v.product_id = pd.id
+                ) AS variants
+
+            FROM products AS pd 
+            WHERE pd.id = $1
+        `;
+
+        const result = await pool.query(sql, [productId]);
+        return result.rows[0];
+    },
+
     getBulkByVariantIds: async (variantIds: number[]) => {
         const sql = `
         SELECT 
@@ -223,6 +258,88 @@ export const productRepository = {
     `;
         const result = await pool.query(sql, [variantIds]);
         return result.rows;
+    },
+    updateProduct: async (productId: number, productData: any, variants: any[]) => {
+        const client = await pool.connect();
+
+        try {
+            await client.query('BEGIN');
+
+            // Update (Products)
+            const updateProductSql = `
+                UPDATE products
+                SET product_name = $1, 
+                    description = $2, 
+                    image_url = $3, 
+                    category_id = $4, 
+                    gender_id = $5,
+                    file_path = $6
+                WHERE id = $7
+            `;
+            await client.query(updateProductSql, [
+                productData.product_name,
+                productData.description,
+                productData.image_url,
+                productData.category_id,
+                productData.gender_id,
+                productData.file_path,
+                productId
+            ]);
+
+            // จัดการ Variants 
+            //หา Variant เก่าที่มีอยู่ใน DB ออกมาก่อน
+            const existingRes = await client.query(
+                'SELECT id FROM product_variants WHERE product_id = $1',
+                [productId]
+            );
+            const existingIds = existingRes.rows.map(r => r.id);
+
+            // หา ID ที่ส่งมาจากหน้าบ้าน (อันไหนมี ID แสดงว่าของเก่าเอามาแก้)
+            const incomingIds = variants
+                .filter((v: any) => v.variant_id)
+                .map((v: any) => v.variant_id);
+
+            // หา ตัวที่ต้องลบ (อยู่ใน DB แต่ไม่อยู่ในหน้าบ้าน)
+            const toDeleteIds = existingIds.filter(id => !incomingIds.includes(id));
+
+            // SOFT DELETE ปรับ Stock เป็น 0 แทนการลบ
+            if (toDeleteIds.length > 0) {
+                // ใช้ UPDATE ... WHERE id = ANY(...) เพื่อทำทีเดียวหลาย row
+                await client.query(
+                    'UPDATE product_variants SET stock_quantity = 0 WHERE id = ANY($1)',
+                    [toDeleteIds]
+                );
+                console.log(`Soft deleted variants: ${toDeleteIds.join(', ')} (Stock set to 0)`);
+            }
+
+            // วนลูป Upsert (มี ID=แก้ / ไม่มี=เพิ่ม)
+            for (const v of variants) {
+                if (v.variant_id) {
+                    // Case Update: ของเดิม แก้ราคา/สต็อก
+                    await client.query(`
+                        UPDATE product_variants
+                        SET color_id = $1, size_id = $2, price = $3, stock_quantity = $4
+                        WHERE id = $5
+                    `, [v.color_id, v.size_id, v.price, v.stock_quantity, v.variant_id]);
+                } else {
+                    // Case Insert: ของใหม่ (User กด Add Variant เพิ่มมา)
+                    await client.query(`
+                        INSERT INTO product_variants (product_id, color_id, size_id, price, stock_quantity)
+                        VALUES ($1, $2, $3, $4, $5)
+                    `, [productId, v.color_id, v.size_id, v.price, v.stock_quantity]);
+                }
+            }
+
+            await client.query('COMMIT');
+            return { message: "Product updated successfully" };
+
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error("Error updating product:", error);
+            throw error;
+        } finally {
+            client.release();
+        }
     },
     decreaseStock: async (items: any[], client: PoolClient) => {
         // ถ้าไม่มีของให้ตัด 

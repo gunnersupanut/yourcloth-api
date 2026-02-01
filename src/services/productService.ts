@@ -38,6 +38,9 @@ export const productService = {
         const products = await productRepository.getAdminProducts();
         return products;
     },
+    getAdminById: async (id: number) => {
+        return await productRepository.getAdminById(id);
+    },
     validateCheckoutItems: async (variantIds: number[]) => {
         if (!variantIds || variantIds.length === 0) {
             return [];
@@ -56,5 +59,14 @@ export const productService = {
         }));
 
         return formattedProducts
+    },
+    update: async (id: number, data: any) => {
+        const { variants, ...productInfo } = data;
+
+        if (!variants || variants.length === 0) {
+            throw new Error("Product must have at least one variant!");
+        }
+
+        return await productRepository.updateProduct(id, productInfo, variants);
     }
 }
