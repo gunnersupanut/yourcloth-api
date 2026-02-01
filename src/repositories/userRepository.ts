@@ -117,5 +117,62 @@ export const userRepository = {
         WHERE id = $1
         `;
         await pool.query(sql, [id]);
+    }, getUserProfile: async (userId: number) => {
+        const sql = `
+            SELECT 
+                id, 
+                username, 
+                email, 
+                name, 
+                surname, 
+                tel, 
+                birthday, 
+                gender
+            FROM users 
+            WHERE id = $1 AND is_active = true
+        `;
+        const result = await pool.query(sql, [userId]);
+        return result.rows[0];
+    },
+
+    // อัปเดตข้อมูล Profile (ไม่รวม Password / Email)
+    updateUserProfile: async (userId: number, data: any) => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            const sql = `
+                UPDATE users 
+                SET 
+                    name = $1, 
+                    surname = $2, 
+                    tel = $3, 
+                    birthday = $4, 
+                    gender = $5,
+                    updated_at = NOW()
+                WHERE id = $6
+                RETURNING id, name, surname, tel, birthday, gender
+            `;
+
+            const values = [
+                data.name,
+                data.surname,
+                data.tel,
+                data.birthday, // ส่งเป็น String 'YYYY-MM-DD' หรือ Date Object ก็ได้ pg จัดการให้
+                data.gender,   // ต้องตรงกับ ENUM ใน DB (Male, Female, Non binary)
+                userId
+            ];
+
+            const result = await client.query(sql, values);
+
+            await client.query('COMMIT');
+            return result.rows[0];
+
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
     }
 }
