@@ -108,4 +108,23 @@ export const updateProduct = async (req: Request, res: Response, next: NextFunct
     }
 };
 
+export const deleteProduct = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const id = Number(req.params.id);
+
+        // Validate ID นิดนึง กันพวกยิงมั่ว
+        if (isNaN(id)) {
+            throw new Error("Invalid Product ID");
+        }
+
+        const result = await productService.delete(id);
+
+        res.status(200).json({
+            success: true,
+            message: result.message
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 

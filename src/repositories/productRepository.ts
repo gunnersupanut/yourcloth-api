@@ -109,10 +109,10 @@ export const productRepository = {
                 LEFT JOIN categories AS c ON pd.category_id = c.id
                 LEFT JOIN genders AS gd ON pd.gender_id = gd.id
                 LEFT JOIN product_variants AS pv ON pv.product_id = pd.id
+                WHERE pd.is_active = true
                 GROUP BY 
                 pd.id, c.name, gd.name
-                ORDER BY pd.id ASC;
-                `;
+                ORDER BY pd.id ASC`;
 
         const result = await pool.query(sql)
         return result.rows;
@@ -168,10 +168,10 @@ export const productRepository = {
         LEFT JOIN categories AS c ON pd.category_id = c.id
         LEFT JOIN genders AS gd ON pd.gender_id = gd.id
         LEFT JOIN product_variants AS pv ON pv.product_id = pd.id
-        WHERE pd.id = $1
+        WHERE pd.id = $1 AND pd.is_active = true
         GROUP BY 
         pd.id, c.name, gd.name
-        ORDER BY pd.id ASC;
+        ORDER BY pd.id ASC
         `;
         const result = await pool.query(sql, [product_id])
         return result.rows[0];
@@ -190,6 +190,7 @@ export const productRepository = {
 
             COALESCE(SUM(pv.stock_quantity), 0) AS total_stock,
             CASE 
+                WHEN pd.is_active = false THEN 'Inactive'
                 WHEN SUM(pv.stock_quantity) > 0 THEN 'Active'
                 ELSE 'Out of Stock'
             END AS calculated_status
@@ -215,7 +216,8 @@ export const productRepository = {
                 pd.image_url,
                 pd.file_path,   
                 pd.category_id,   
-                pd.gender_id,    
+                pd.gender_id,
+                pd.is_active,    
                 
                 (
                     SELECT JSON_AGG(
@@ -265,7 +267,7 @@ export const productRepository = {
         try {
             await client.query('BEGIN');
 
-            // Update (Products)
+            // ---Update (Products)
             const updateProductSql = `
                 UPDATE products
                 SET product_name = $1, 
@@ -273,8 +275,9 @@ export const productRepository = {
                     image_url = $3, 
                     category_id = $4, 
                     gender_id = $5,
-                    file_path = $6
-                WHERE id = $7
+                    file_path = $6,
+                    is_active = $7   -- 🔥 เพิ่ม is_active
+                WHERE id = $8        -- 🔥 ขยับ index เป็น 8
             `;
             await client.query(updateProductSql, [
                 productData.product_name,
@@ -283,50 +286,60 @@ export const productRepository = {
                 productData.category_id,
                 productData.gender_id,
                 productData.file_path,
+                productData.is_active, // 🔥 รับค่าจากหน้าบ้าน
                 productId
             ]);
 
-            // จัดการ Variants 
-            //หา Variant เก่าที่มีอยู่ใน DB ออกมาก่อน
+            // ---จัดการ Variants 
+
+            // ---หา ID เก่าใน DB
             const existingRes = await client.query(
                 'SELECT id FROM product_variants WHERE product_id = $1',
                 [productId]
             );
             const existingIds = existingRes.rows.map(r => r.id);
 
-            // หา ID ที่ส่งมาจากหน้าบ้าน (อันไหนมี ID แสดงว่าของเก่าเอามาแก้)
+            // ---หา ID ที่ส่งมาจากหน้าบ้าน
             const incomingIds = variants
                 .filter((v: any) => v.variant_id)
                 .map((v: any) => v.variant_id);
 
-            // หา ตัวที่ต้องลบ (อยู่ใน DB แต่ไม่อยู่ในหน้าบ้าน)
+            // ---หา "ตัวที่ต้องลบ" (User กดถังขยะทิ้งไป)
             const toDeleteIds = existingIds.filter(id => !incomingIds.includes(id));
 
-            // SOFT DELETE ปรับ Stock เป็น 0 แทนการลบ
+            // ---SOFT DELETE ตัวที่โดนลบ: ปรับ Stock 0 + ปิด is_active
             if (toDeleteIds.length > 0) {
-                // ใช้ UPDATE ... WHERE id = ANY(...) เพื่อทำทีเดียวหลาย row
                 await client.query(
-                    'UPDATE product_variants SET stock_quantity = 0 WHERE id = ANY($1)',
+                    `UPDATE product_variants 
+                     SET stock_quantity = 0, is_active = false 
+                     WHERE id = ANY($1)`,
                     [toDeleteIds]
                 );
-                console.log(`Soft deleted variants: ${toDeleteIds.join(', ')} (Stock set to 0)`);
+                console.log(`Soft deleted variants: ${toDeleteIds.join(', ')}`);
             }
 
-            // วนลูป Upsert (มี ID=แก้ / ไม่มี=เพิ่ม)
+            // ---วนลูป Upsert (Update / Insert)
             for (const v of variants) {
+                // เช็คว่ามีส่ง is_active มาไหม? ถ้าไม่มีให้ Default เป็น true
+                const variantIsActive = v.is_active !== undefined ? v.is_active : true;
+
                 if (v.variant_id) {
-                    // Case Update: ของเดิม แก้ราคา/สต็อก
+                    // Case Update: ของเดิม -> แก้ข้อมูล + อัปเดตสถานะ
                     await client.query(`
                         UPDATE product_variants
-                        SET color_id = $1, size_id = $2, price = $3, stock_quantity = $4
-                        WHERE id = $5
-                    `, [v.color_id, v.size_id, v.price, v.stock_quantity, v.variant_id]);
+                        SET color_id = $1, 
+                            size_id = $2, 
+                            price = $3, 
+                            stock_quantity = $4,
+                            is_active = $5  -- 🔥 อัปเดตสถานะลูก
+                        WHERE id = $6
+                    `, [v.color_id, v.size_id, v.price, v.stock_quantity, variantIsActive, v.variant_id]);
                 } else {
-                    // Case Insert: ของใหม่ (User กด Add Variant เพิ่มมา)
+                    // Case Insert: ของใหม่ -> เพิ่มข้อมูล + สถานะเริ่มต้น
                     await client.query(`
-                        INSERT INTO product_variants (product_id, color_id, size_id, price, stock_quantity)
-                        VALUES ($1, $2, $3, $4, $5)
-                    `, [productId, v.color_id, v.size_id, v.price, v.stock_quantity]);
+                        INSERT INTO product_variants (product_id, color_id, size_id, price, stock_quantity, is_active)
+                        VALUES ($1, $2, $3, $4, $5, $6) -- 🔥 เพิ่ม value ตัวที่ 6
+                    `, [productId, v.color_id, v.size_id, v.price, v.stock_quantity, variantIsActive]);
                 }
             }
 
@@ -336,6 +349,44 @@ export const productRepository = {
         } catch (error) {
             await client.query('ROLLBACK');
             console.error("Error updating product:", error);
+            throw error;
+        } finally {
+            client.release();
+        }
+    },
+    deleteProduct: async (id: number) => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            // เช็คว่ามีของไหม
+            const checkRes = await client.query('SELECT id FROM products WHERE id = $1', [id]);
+            if (checkRes.rows.length === 0) {
+                throw new Error("Product not found");
+            }
+
+            await client.query(
+                'UPDATE products SET is_active = false WHERE id = $1',
+                [id]
+            );
+
+            await client.query(
+                'UPDATE product_variants SET is_active = false WHERE product_id = $1',
+                [id]
+            );
+
+            await client.query(
+                'UPDATE product_variants SET stock_quantity = 0 WHERE product_id = $1',
+                [id]
+            );
+
+            await client.query('COMMIT');
+
+            return { message: "Product and variants deactivated successfully" };
+
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error("Soft Delete Error:", error);
             throw error;
         } finally {
             client.release();

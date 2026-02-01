@@ -1,4 +1,5 @@
 import { productRepository } from "../repositories/productRepository"
+import { deleteFileFromCloudinary } from "../utils/cloudinary";
 
 export const productService = {
     createProduct: async (data: any) => {
@@ -63,10 +64,26 @@ export const productService = {
     update: async (id: number, data: any) => {
         const { variants, ...productInfo } = data;
 
-        if (!variants || variants.length === 0) {
-            throw new Error("Product must have at least one variant!");
+        // ดึงข้อมูลเก่าออกมาก่อน (
+        const oldProduct = await productRepository.getAdminById(id);
+        const oldFilePath = oldProduct?.file_path; // public_id เก่า
+
+        // สั่ง Update ลง DB
+        const result = await productRepository.updateProduct(id, productInfo, variants);
+
+        // เช็ค: ถ้ามีการส่งรูปใหม่มา และ มันไม่ตรงกับรูปเก่า -> ลบรูปเก่าทิ้ง!
+        // (ต้องเช็คว่ามี oldFilePath ด้วยนะ เดี๋ยวไปลบความว่างเปล่า)
+        if (productInfo.file_path && oldFilePath && productInfo.file_path !== oldFilePath) {
+            console.log("Image changed! Deleting old image...");
+
+            // สั่งลบแล้วไม่ต้องรอ ไปทำอย่างอื่นต่อเลย
+            deleteFileFromCloudinary(oldFilePath);
         }
 
-        return await productRepository.updateProduct(id, productInfo, variants);
+        return result;
+    },
+    delete: async (id: number) => {
+        // เรียก Repo ให้จัดการปิดสวิตช์ (Soft Delete)
+        return await productRepository.deleteProduct(id);
     }
-}
+};
