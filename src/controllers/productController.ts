@@ -2,7 +2,15 @@ import { NextFunction, Request, Response } from "express";
 import { productService } from "../services/productService";
 import { AppError } from "../utils/AppError";
 
-
+export const createProductController = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        // รับข้อมูลจาก Body
+        const result = await productService.createProduct(req.body);
+        res.status(201).json({ success: true, data: result });
+    } catch (error) {
+        next(error);
+    }
+}
 export const getAllProductController = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const result = await productService.getAll();
@@ -68,5 +76,18 @@ export const getCheckoutValidation = async (req: Request<unknown, unknown, getCh
         console.error("Delete Selected Cart Error:", error);
         return res.status(500).json({ message: "Internal Server Error" });
     }
-}
+};
+export const getAdminProductsContoller = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const products = await productService.getAdminProducts();
+
+        res.status(200).json({
+            success: true,
+            count: products.length,
+            data: products
+        });
+    } catch (error) {
+        next(error);
+    }
+};
 

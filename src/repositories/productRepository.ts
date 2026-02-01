@@ -1,6 +1,68 @@
 import pool from "../config/db";
 import { PoolClient } from 'pg';
 export const productRepository = {
+    createProduct: async (productData: any, variants: any[]) => {
+        // ขอ Client มาส่วนตัวเพื่อทำ Transaction
+        const client = await pool.connect();
+
+        try {
+            // ริ่ม Transaction 
+            await client.query('BEGIN');
+
+            // Insert ลงตารางแม่ (Products)
+            const insertProductSql = `
+                INSERT INTO products (product_name, description, image_url, category_id, gender_id)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING id
+            `;
+
+            const productResult = await client.query(insertProductSql, [
+                productData.product_name,
+                productData.description,
+                productData.image_url,
+                productData.category_id,
+                productData.gender_id
+            ]);
+
+            const newProductId = productResult.rows[0].id;
+            console.log(` Created Product ID: ${newProductId}`);
+
+            // BULK INSERT: ยิงทีเดียว จบทุก Variant
+            if (variants.length > 0) {
+                // 1. สร้าง Placeholder เช่น ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10), ...
+                const values: any[] = [];
+                const placeholders: string[] = [];
+                let paramIndex = 1;
+
+                variants.forEach((v) => {
+                    placeholders.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4})`);
+
+                    // เรียงตามลำดับ field ใน Query
+                    values.push(newProductId, v.color_id, v.size_id, v.price, v.stock_quantity);
+
+                    paramIndex += 5; // ขยับไป 5 ช่อง (ตามจำนวน field)
+                });
+
+                const bulkInsertSql = `
+                    INSERT INTO product_variants (product_id, color_id, size_id, price, stock_quantity)
+                    VALUES ${placeholders.join(', ')}
+                `;
+                await client.query(bulkInsertSql, values);
+            }
+            // ถ้าทุกอย่างผ่าน -> บันทึก!
+            await client.query('COMMIT');
+
+            return { id: newProductId, message: "Product created successfully" };
+
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error("Error creating product:", error);
+            throw error;
+        } finally {
+            // ปล่อย Client คืน Pool
+            client.release();
+        }
+    },
     getStockQuantity: async (product_variant_id: number) => {
         const sql =
             'SELECT stock_quantity FROM product_variants WHERE id = $1';
@@ -52,6 +114,35 @@ export const productRepository = {
                 `;
 
         const result = await pool.query(sql)
+        return result.rows;
+    },
+    getAdminProducts: async () => {
+        const sql = `
+        SELECT
+            pd.id, 
+            pd.product_name, 
+            pd.image_url,
+            c.name AS category,
+            gd.name AS gender,
+            MIN(pv.price) AS min_price,
+            MAX(pv.price) AS max_price,
+
+            COALESCE(SUM(pv.stock_quantity), 0) AS total_stock,
+            CASE 
+                WHEN SUM(pv.stock_quantity) > 0 THEN 'Active'
+                ELSE 'Out of Stock'
+            END AS calculated_status
+
+        FROM products AS pd 
+        LEFT JOIN categories AS c ON pd.category_id = c.id
+        LEFT JOIN genders AS gd ON pd.gender_id = gd.id
+        LEFT JOIN product_variants AS pv ON pv.product_id = pd.id
+        
+        GROUP BY pd.id, c.name, gd.name
+        ORDER BY pd.id DESC; 
+    `;
+
+        const result = await pool.query(sql);
         return result.rows;
     },
     getById: async (product_id: number) => {

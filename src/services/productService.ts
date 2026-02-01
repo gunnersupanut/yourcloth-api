@@ -1,6 +1,26 @@
 import { productRepository } from "../repositories/productRepository"
 
 export const productService = {
+    createProduct: async (data: any) => {
+        // data หน้าตาประมาณนี้:
+        // {
+        //    product_name: "เสื้อเท่",
+        //    description: "...",
+        //    image_url: "...",
+        //    category_id: 1,
+        //    gender_id: 1,
+        //    variants: [ { color_id: 1, size_id: 2, price: 500, stock_quantity: 10 }, ... ]
+        // }
+
+        // แยก header กับ variants ออกจากกัน
+        const { variants, ...productInfo } = data;
+
+        if (!variants || variants.length === 0) {
+            throw new Error("Product must have at least one variant!");
+        }
+
+        return await productRepository.createProduct(productInfo, variants);
+    },
     getStock: async (product_variant_id: number) => {
         const stock = await productRepository.getStockQuantity(product_variant_id);
         return stock;
@@ -12,6 +32,11 @@ export const productService = {
         const result = await productRepository.getById(product_id)
         if (!result) throw new Error("product_not_found");
         return result
+    },
+    getAdminProducts: async () => {
+        // เรียก Repo ตัวใหม่ที่เราเพิ่งคุยกัน
+        const products = await productRepository.getAdminProducts();
+        return products;
     },
     validateCheckoutItems: async (variantIds: number[]) => {
         if (!variantIds || variantIds.length === 0) {
