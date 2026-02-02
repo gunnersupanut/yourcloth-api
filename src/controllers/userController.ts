@@ -65,7 +65,7 @@ export const userController = {
     changePassword: async (req: Request, res: Response, next: NextFunction) => {
         try {
             // แกะ ID ของคนสั่งการมาจาก Token
-              const userId = (req.user as CustomJwtPayload).id;
+            const userId = (req.user as CustomJwtPayload).id;
 
             //  รับค่าจาก Body (ต้องตรงกับที่ Frontend ส่งมา: current_password, new_password)
             const { current_password, new_password } = req.body;
@@ -87,6 +87,21 @@ export const userController = {
 
         } catch (error) {
             next(error); // ส่ง Error ไปให้ Error Handler จัดการ
+        }
+    },
+    deleteMyAccount: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const userId = (req as any).user.id; // แกะจาก Token
+
+            await userService.deleteMyAccount(userId);
+
+            res.status(200).json({
+                success: true,
+                message: "Account deleted successfully. We are sorry to see you go."
+            });
+
+        } catch (error) {
+            next(error);
         }
     }
 };

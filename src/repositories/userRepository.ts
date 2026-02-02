@@ -193,5 +193,18 @@ export const userRepository = {
         } finally {
             client.release();
         }
+    },
+    softDeleteUser: async (userId: number) => {
+        const sql = `
+            UPDATE users 
+            SET 
+                deleted_at = NOW(), 
+                is_active = false,
+                updated_at = NOW()
+            WHERE id = $1 AND deleted_at IS NULL
+            RETURNING id
+        `;
+        const result = await pool.query(sql, [userId]);
+        return result; // ส่งกลับ true ถ้าลบสำเร็จ
     }
 }

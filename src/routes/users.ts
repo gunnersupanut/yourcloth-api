@@ -10,4 +10,5 @@ router.get("/profile", authMiddleware, userController.getMyProfile);
 
 router.put("/profile", authMiddleware, userController.updateMyProfile);
 router.put("/change-password", authMiddleware, userController.changePassword);
+router.delete("/account", authMiddleware, userController.deleteMyAccount);
 export default router;

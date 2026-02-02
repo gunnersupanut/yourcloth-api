@@ -1,5 +1,6 @@
 import { userRepository } from "../repositories/userRepository";
 import bcrypt from 'bcrypt';
+import { AppError } from "../utils/AppError";
 export const userService = {
     // ดึงข้อมูลตัวเอง
     getProfile: async (userId: number) => {
@@ -16,19 +17,27 @@ export const userService = {
     },
     changePassword: async (userId: number, currentPass: string, newPass: string) => {
         // ดึง User มาเอา Hash เก่า
-        const user = await userRepository.findUserById(userId); 
-        if (!user) throw new Error("User not found");
+        const user = await userRepository.findUserById(userId);
+        if (!user) throw new AppError("User not found", 400);
 
         // เช็ครหัสเก่า
         const isMatch = await bcrypt.compare(currentPass, user.password_hash);
-        if (!isMatch) {
-            const error: any = new Error("Incorrect current password");
-            error.statusCode = 400; // ส่ง 400 Bad Request
-            throw error;
-        }
+        if (!isMatch) throw new AppError("Incorrect current password", 401);
+
 
         // Hash รหัสใหม่
         const newHash = await bcrypt.hash(newPass, 10);
         await userRepository.updatePasswordByUserId(userId, newHash);
+    },
+    deleteMyAccount: async (userId: number) => {
+        // สั่งลบเลย
+        const isDeleted = await userRepository.softDeleteUser(userId);
+
+        // ถ้าลบไม่ได้ (เช่น ID ผิด หรือ เคยลบไปแล้ว) ให้ดีด Error
+        if (!isDeleted) {
+            throw new AppError("User not found or already deleted", 404);
+        }
+
+        return true;
     }
 };
