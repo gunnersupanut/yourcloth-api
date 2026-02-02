@@ -53,7 +53,7 @@ export const addressRepository = {
         return result.rows[0];
     },
     setDefaultAddress: async (userId: number, addressId: number, client: Pool | PoolClient = pool) => {
-        const sql = `UPDATE addresses SET is_default = true WHERE id = $1 AND user_id = $2 RETURNING *`;
+        const sql = `UPDATE user_addresses SET is_default = true WHERE id = $1 AND user_id = $2 RETURNING *`;
         const result = await client.query(sql, [addressId, userId]);
         return result.rows[0];
     },

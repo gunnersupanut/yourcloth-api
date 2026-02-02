@@ -16,7 +16,7 @@ export interface CreateAddressPayload {
     district: string;
     subDistrict: string;
     zipCode: string;
-    adddressDetail: string;
+    addressDetail: string;
     isDefault?: boolean;
 }
 export interface UpdateAddressPayload {

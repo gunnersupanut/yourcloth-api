@@ -29,11 +29,11 @@ export const addAddressController = async (req: Request<unknown, unknown, Create
             district,
             subDistrict,
             zipCode,
-            adddressDetail,
+            addressDetail,
             isDefault
         } = req.body;
         // เช็คว่าส่งของมาครบไหม
-        if (!recipientName || !phoneNumber || !adddressDetail || !province || !district || !subDistrict || !zipCode) {
+        if (!recipientName || !phoneNumber || !addressDetail || !province || !district || !subDistrict || !zipCode) {
             return res.status(400).json({ message: "Please fill in all required fields." });
         }
 
@@ -41,7 +41,7 @@ export const addAddressController = async (req: Request<unknown, unknown, Create
         const newAddress = await addressService.addNewAddress(userId, {
             recipient_name: recipientName,
             phone_number: phoneNumber,
-            address_detail: adddressDetail,
+            address_detail: addressDetail,
             province: province,
             district: district,
             sub_district: subDistrict,
@@ -108,7 +108,7 @@ export const updateAddressController = async (
     }
 };
 
-export const setAddressDefault = async (req: Request<{ id: string }, unknown, UpdateAddressPayload>,
+export const  setAddressDefault = async (req: Request<{ id: string }, unknown, UpdateAddressPayload>,
     res: Response) => {
     try {
         const userId = (req.user as CustomJwtPayload).id;// ดึงจาก Token
