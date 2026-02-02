@@ -64,6 +64,8 @@ app.use("/api/v1/admin/auth", adminAuthRouter)
 // Order
 import adminOrderRouter from './routes/adminOrderRouter'
 app.use("/api/v1/admin/orders", adminOrderRouter)
+import adminUserRouter from './routes/adminUserRoutes'
+app.use("/api/v1/admin/users", adminUserRouter)
 // Global Hanler Error
 app.use(errorHandler);
 // สั่งให้ Server มันเริ่มฟัง
