@@ -49,7 +49,7 @@ export const userController = {
     updateMyProfile: async (req: Request, res: Response, next: NextFunction) => {
         try {
             const userId = (req.user as CustomJwtPayload).id;
-            const body = req.body; 
+            const body = req.body;
 
             const updatedUser = await userService.updateProfile(userId, body);
 
@@ -60,6 +60,33 @@ export const userController = {
             });
         } catch (error) {
             next(error);
+        }
+    },
+    changePassword: async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            // แกะ ID ของคนสั่งการมาจาก Token
+              const userId = (req.user as CustomJwtPayload).id;
+
+            //  รับค่าจาก Body (ต้องตรงกับที่ Frontend ส่งมา: current_password, new_password)
+            const { current_password, new_password } = req.body;
+
+            // เช็คเบื้องต้น
+            if (!current_password || !new_password) {
+                res.status(400).json({ message: "Please provide both current and new passwords" });
+                return;
+            }
+
+            // เรียก Service ให้ทำงาน
+            await userService.changePassword(userId, current_password, new_password);
+
+            // ส่งผลลัพธ์กลับไป
+            res.status(200).json({
+                success: true,
+                message: "Password updated successfully"
+            });
+
+        } catch (error) {
+            next(error); // ส่ง Error ไปให้ Error Handler จัดการ
         }
     }
 };

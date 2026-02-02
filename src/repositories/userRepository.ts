@@ -44,6 +44,25 @@ export const userRepository = {
     `;
         const result = await pool.query(sql, [token]);
         return result.rows[0];
+    }, findUserById: async (userId: number) => {
+        const sql = `
+            SELECT id, password_hash 
+            FROM users 
+            WHERE id = $1
+        `;
+        const result = await pool.query(sql, [userId]);
+        return result.rows[0];
+    },
+
+    //  อัปเดต Password ใหม่
+    updatePasswordByUserId: async (userId: number, newHash: string) => {
+        const sql = `
+            UPDATE users 
+            SET password_hash = $1, updated_at = NOW() 
+            WHERE id = $2
+        `;
+        await pool.query(sql, [newHash, userId]);
+        return true; // ส่งกลับว่าสำเร็จ
     },
     addNewUser: async (data: CreateUserParams) => {
         const sql = `
