@@ -58,6 +58,9 @@ app.use("/api/v1/orders", orderRouter)
 import masterRouter from './routes/master'
 app.use("/api/v1/master", masterRouter)
 
+// Banner
+import bannerRouter from './routes/bannerRoutes'
+app.use("/api/v1/banners", bannerRouter)
 // **--Admin--**
 import adminAuthRouter from './routes/adminAuthRouter'
 app.use("/api/v1/admin/auth", adminAuthRouter)
