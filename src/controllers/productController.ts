@@ -13,13 +13,42 @@ export const createProductController = async (req: Request, res: Response, next:
 }
 export const getAllProductController = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const result = await productService.getAll();
+        const {
+            page,
+            limit,
+            search,
+            category,
+            gender,
+            sort,
+            minPrice,
+            maxPrice
+        } = req.query;
+        const filters = {
+            page: page ? parseInt(page as string) : 1,          // ถ้าไม่ส่งมา เอาหน้า 1
+            limit: limit ? parseInt(limit as string) : 12,      // ถ้าไม่ส่งมา เอา 12 ชิ้น
+            search: search as string,                           // String อยู่แล้ว
+            category: category as string,
+            gender: gender as string,
+            sort: sort as string,
+            minPrice: minPrice ? parseInt(minPrice as string) : undefined, // แปลงเป็น int
+            maxPrice: maxPrice ? parseInt(maxPrice as string) : undefined, // แปลงเป็น int
+        };
+
+        // เรียกใช้ Service
+        const result = await productService.getAllProducts(filters);
+
         res.status(200).json({
-            message: "Get All Product Complete.",
-            result: result
-        })
+            success: true,
+            data: result.products,      // รายการสินค้า
+            pagination: {               // ข้อมูลหน้ากระดาษ (Frontend เอาไปทำปุ่ม Next/Prev)
+                total: result.total,
+                currentPage: result.currentPage,
+                totalPages: result.totalPages,
+            }
+        });
+
     } catch (error) {
-        next(error);
+        next(error); // ส่ง Error ให้ Middleware จัดการ
     }
 }
 export const getAdminProductById = async (req: Request, res: Response, next: NextFunction) => {

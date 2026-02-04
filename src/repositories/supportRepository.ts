@@ -7,7 +7,7 @@ export interface ISupportTicketPayload {
 }
 
 export const supportRepository = {
-    // User: สร้าง Ticket ใหม่
+    // User สร้าง Ticket ใหม่
     create: async (data: ISupportTicketPayload) => {
         const query = `
       INSERT INTO support_tickets (user_id, topic, message, status, created_at, updated_at)
@@ -19,7 +19,7 @@ export const supportRepository = {
         return rows[0];
     },
 
-    // Admin: ดูรายการทั้งหมด (เรียงจากใหม่ไปเก่า)
+    // Admin ดูรายการทั้งหมด (เรียงจากใหม่ไปเก่า)
     findAll: async () => {
         const query = `
       SELECT 
@@ -34,7 +34,7 @@ export const supportRepository = {
         const { rows } = await pool.query(query);
         return rows;
     },
-    // Admin: อัปเดตสถานะ (เช่น เปลี่ยนเป็น RESOLVED)
+    // Admin อัปเดตสถานะ (เช่น เปลี่ยนเป็น RESOLVED)
     updateStatus: async (id: number, status: string, adminResponse?: string, resolverName?: string) => {
         const query = `
       UPDATE support_tickets 

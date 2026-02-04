@@ -1,5 +1,6 @@
 import pool from "../config/db";
 import { PoolClient } from 'pg';
+import { IProductFilter } from "../type/productTypes";
 export const productRepository = {
     createProduct: async (productData: any, variants: any[]) => {
         // ขอ Client มาส่วนตัวเพื่อทำ Transaction
@@ -74,48 +75,149 @@ export const productRepository = {
         }
         return result.rows[0].stock_quantity;
     },
-    getAllProduct: async () => {
-        const sql =
-            `
-                SELECT
-                pd.id, 
-                pd.product_name, 
-                MIN(pv.price) AS price,
-                pd.description, 
-                pd.image_url,
-                c.name AS category,
-                gd.name AS gender,
-                 (
-            SELECT JSON_AGG(
-            json_build_object(
-            'name', sub.name, 
-            'code', sub.hex_code
-            )
-            )
-            FROM (
-            SELECT DISTINCT cl.name, cl.hex_code
-            FROM product_variants pv
-            JOIN colors AS cl ON pv.color_id = cl.id
-            WHERE pv.product_id = pd.id
-            ) sub
-            ) AS available_colors,
-                (
-                SELECT JSON_AGG(DISTINCT si.name)
-                FROM product_variants pv
-                JOIN sizes AS si ON pv.size_id = si.id
-                WHERE pv.product_id = pd.id 
-                ) AS available_sizes  
-                FROM products AS pd 
-                LEFT JOIN categories AS c ON pd.category_id = c.id
-                LEFT JOIN genders AS gd ON pd.gender_id = gd.id
-                LEFT JOIN product_variants AS pv ON pv.product_id = pd.id
-                WHERE pd.is_active = true
-                GROUP BY 
-                pd.id, c.name, gd.name
-                ORDER BY pd.id ASC`;
+    getAllProducts: async (filters: IProductFilter) => {
+        const {
+            page = 1,
+            limit = 12,
+            search,
+            category,
+            gender,
+            sort = "newest",
+            minPrice,
+            maxPrice,
+        } = filters;
 
-        const result = await pool.query(sql)
-        return result.rows;
+        const offset = (page - 1) * limit;
+
+        // เก็บเงื่อนไข WHERE และ Values
+        const whereConditions: string[] = ["pd.is_active = true"];
+        const values: any[] = [];
+        let paramIndex = 1;
+
+        // --- Dynamic WHERE Clause ---
+
+        // Search (ค้นหาชื่อ หรือ คำอธิบาย)
+        if (search) {
+            whereConditions.push(`(pd.product_name ILIKE $${paramIndex} OR pd.description ILIKE $${paramIndex})`);
+            values.push(`%${search}%`);
+            paramIndex++;
+        }
+
+        // Category
+        if (category && category !== "All") { // ถ้าส่ง All มาไม่ต้องกรอง
+            whereConditions.push(`c.name = $${paramIndex}`);
+            values.push(category);
+            paramIndex++;
+        }
+
+        // Gender
+        if (gender && gender !== "All") {
+            whereConditions.push(`gd.name = $${paramIndex}`);
+            values.push(gender);
+            paramIndex++;
+        }
+
+        // --- Dynamic HAVING Clause (สำหรับราคา) ---
+        // เพราะราคามาจากการหาค่า MIN(pv.price) ต้องใช้ HAVING กรองหลัง Group
+        const havingConditions: string[] = [];
+
+        if (minPrice !== undefined) {
+            havingConditions.push(`MIN(pv.price) >= $${paramIndex}`);
+            values.push(minPrice);
+            paramIndex++;
+        }
+
+        if (maxPrice !== undefined) {
+            havingConditions.push(`MIN(pv.price) <= $${paramIndex}`);
+            values.push(maxPrice);
+            paramIndex++;
+        }
+
+        // --- Dynamic ORDER BY ---
+        let orderBy = "pd.id DESC"; // Default: ใหม่สุด (ID มากสุด)
+        switch (sort) {
+            case "price_asc":
+                orderBy = "price ASC"; // ใช้ Alias 'price' ที่ตั้งไว้
+                break;
+            case "price_desc":
+                orderBy = "price DESC";
+                break;
+            case "oldest":
+                orderBy = "pd.id ASC";
+                break;
+            default:
+                orderBy = "pd.id DESC";
+        }
+
+        // ประกอบ SQL หลัก
+        const whereString = whereConditions.join(" AND ");
+        const havingString = havingConditions.length > 0 ? `HAVING ${havingConditions.join(" AND ")}` : "";
+
+        const sql = `
+      SELECT
+        pd.id, 
+        pd.product_name, 
+        MIN(pv.price) AS price,
+        pd.description, 
+        pd.image_url,
+        c.name AS category,
+        gd.name AS gender,
+        (
+          SELECT JSON_AGG(json_build_object('name', sub.name, 'code', sub.hex_code))
+          FROM (
+            SELECT DISTINCT cl.name, cl.hex_code
+            FROM product_variants pv_sub
+            JOIN colors AS cl ON pv_sub.color_id = cl.id
+            WHERE pv_sub.product_id = pd.id
+          ) sub
+        ) AS available_colors,
+        (
+          SELECT JSON_AGG(DISTINCT si.name)
+          FROM product_variants pv_sub
+          JOIN sizes AS si ON pv_sub.size_id = si.id
+          WHERE pv_sub.product_id = pd.id 
+        ) AS available_sizes
+      FROM products AS pd 
+      LEFT JOIN categories AS c ON pd.category_id = c.id
+      LEFT JOIN genders AS gd ON pd.gender_id = gd.id
+      LEFT JOIN product_variants AS pv ON pv.product_id = pd.id
+      WHERE ${whereString}
+      GROUP BY pd.id, c.name, gd.name
+      ${havingString}
+      ORDER BY ${orderBy}
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+        // ใส่ limit, offset ต่อท้าย values
+        const queryValues = [...values, limit, offset];
+
+        // ยิง Query หาข้อมูลสินค้า
+        const result = await pool.query(sql, queryValues);
+
+        // (Optional but Recommended) หาจำนวนทั้งหมดเพื่อทำ Pagination (Total Count)
+        // ต้อง query แยกอีกรอบโดยใช้เงื่อนไขเดิมแต่เอา Limit/Offset ออก เพื่อบอก Frontend ว่ามีกี่หน้า
+        const countSql = `
+      SELECT COUNT(*) as total FROM (
+        SELECT pd.id 
+        FROM products AS pd
+        LEFT JOIN categories AS c ON pd.category_id = c.id
+        LEFT JOIN genders AS gd ON pd.gender_id = gd.id
+        LEFT JOIN product_variants AS pv ON pv.product_id = pd.id
+        WHERE ${whereString}
+        GROUP BY pd.id, c.name, gd.name
+        ${havingString}
+      ) as subquery
+    `;
+        // ใช้ values ชุดเดิม (ไม่ต้องมี limit/offset)
+        const countResult = await pool.query(countSql, values);
+        const total = parseInt(countResult.rows[0]?.total || "0");
+
+        return {
+            products: result.rows,
+            total,
+            currentPage: Number(page),
+            totalPages: Math.ceil(total / Number(limit))
+        };
     },
     getById: async (product_id: number) => {
         const sql =

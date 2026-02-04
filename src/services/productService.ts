@@ -1,4 +1,5 @@
 import { productRepository } from "../repositories/productRepository"
+import { IProductParams } from "../type/productTypes";
 import { deleteFileFromCloudinary } from "../utils/cloudinary";
 
 export const productService = {
@@ -26,8 +27,8 @@ export const productService = {
         const stock = await productRepository.getStockQuantity(product_variant_id);
         return stock;
     },
-    getAll: async () => {
-        return await productRepository.getAllProduct();
+    getAllProducts: async (filters: IProductParams) => {
+        return await productRepository.getAllProducts(filters);
     },
     getById: async (product_id: number) => {
         const result = await productRepository.getById(product_id)
