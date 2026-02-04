@@ -23,6 +23,7 @@ export const getAllProductController = async (req: Request, res: Response, next:
             search,
             category,
             gender,
+            size,
             sort,
             minPrice,
             maxPrice
@@ -33,6 +34,7 @@ export const getAllProductController = async (req: Request, res: Response, next:
             search: search as string,                           // String อยู่แล้ว
             category: category as string,
             gender: gender as string,
+            size: size as string,
             sort: sort as string,
             minPrice: minPrice ? parseInt(minPrice as string) : undefined, // แปลงเป็น int
             maxPrice: maxPrice ? parseInt(maxPrice as string) : undefined, // แปลงเป็น int

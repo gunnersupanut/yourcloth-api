@@ -102,6 +102,7 @@ export const productRepository = {
             search,
             category,
             gender,
+            size,
             sort = "newest",
             minPrice,
             maxPrice,
@@ -109,36 +110,38 @@ export const productRepository = {
 
         const offset = (page - 1) * limit;
 
-        // เก็บเงื่อนไข WHERE และ Values
         const whereConditions: string[] = ["pd.is_active = true"];
         const values: any[] = [];
         let paramIndex = 1;
 
         // --- Dynamic WHERE Clause ---
 
-        // Search (ค้นหาชื่อ หรือ คำอธิบาย)
         if (search) {
             whereConditions.push(`(pd.product_name ILIKE $${paramIndex} OR pd.description ILIKE $${paramIndex})`);
             values.push(`%${search}%`);
             paramIndex++;
         }
 
-        // Category
-        if (category && category !== "All") { // ถ้าส่ง All มาไม่ต้องกรอง
+        if (category && category !== "All") {
             whereConditions.push(`c.name = $${paramIndex}`);
             values.push(category);
             paramIndex++;
         }
 
-        // Gender
         if (gender && gender !== "All") {
             whereConditions.push(`gd.name = $${paramIndex}`);
             values.push(gender);
             paramIndex++;
         }
 
-        // --- Dynamic HAVING Clause (สำหรับราคา) ---
-        // เพราะราคามาจากการหาค่า MIN(pv.price) ต้องใช้ HAVING กรองหลัง Group
+        if (size && size !== "All") {
+            // ต้องเช็คว่า sz.name (ตาราง sizes) ตรงกับค่าที่ส่งมาไหม
+            whereConditions.push(`sz.name = $${paramIndex}`);
+            values.push(size);
+            paramIndex++;
+        }
+
+        // --- Dynamic HAVING Clause ---
         const havingConditions: string[] = [];
 
         if (minPrice !== undefined) {
@@ -153,23 +156,15 @@ export const productRepository = {
             paramIndex++;
         }
 
-        // --- Dynamic ORDER BY ---
-        let orderBy = "pd.id DESC"; // Default: ใหม่สุด (ID มากสุด)
+        // --- Order By ---
+        let orderBy = "pd.id DESC";
         switch (sort) {
-            case "price_asc":
-                orderBy = "price ASC"; // ใช้ Alias 'price' ที่ตั้งไว้
-                break;
-            case "price_desc":
-                orderBy = "price DESC";
-                break;
-            case "oldest":
-                orderBy = "pd.id ASC";
-                break;
-            default:
-                orderBy = "pd.id DESC";
+            case "price_asc": orderBy = "price ASC"; break;
+            case "price_desc": orderBy = "price DESC"; break;
+            case "oldest": orderBy = "pd.id ASC"; break;
+            default: orderBy = "pd.id DESC";
         }
 
-        // ประกอบ SQL หลัก
         const whereString = whereConditions.join(" AND ");
         const havingString = havingConditions.length > 0 ? `HAVING ${havingConditions.join(" AND ")}` : "";
 
@@ -177,7 +172,7 @@ export const productRepository = {
       SELECT
         pd.id, 
         pd.product_name, 
-        MIN(pv.price) AS price,
+        MIN(pv.price) AS price, -- ราคาจะโชว์เฉพาะของ Variant ที่ผ่าน Filter (เช่น ราคาของไซส์ L)
         pd.description, 
         pd.image_url,
         c.name AS category,
@@ -192,15 +187,20 @@ export const productRepository = {
           ) sub
         ) AS available_colors,
         (
-          SELECT JSON_AGG(DISTINCT si.name)
-          FROM product_variants pv_sub
-          JOIN sizes AS si ON pv_sub.size_id = si.id
-          WHERE pv_sub.product_id = pd.id 
+          SELECT JSON_AGG(json_build_object('id', sub.id, 'name', sub.name))
+          FROM (
+            SELECT DISTINCT si.id, si.name
+            FROM product_variants pv_sub
+            JOIN sizes AS si ON pv_sub.size_id = si.id
+            WHERE pv_sub.product_id = pd.id
+            ORDER BY si.id ASC
+          ) sub
         ) AS available_sizes
       FROM products AS pd 
       LEFT JOIN categories AS c ON pd.category_id = c.id
       LEFT JOIN genders AS gd ON pd.gender_id = gd.id
       LEFT JOIN product_variants AS pv ON pv.product_id = pd.id
+      LEFT JOIN sizes AS sz ON pv.size_id = sz.id 
       WHERE ${whereString}
       GROUP BY pd.id, c.name, gd.name
       ${havingString}
@@ -208,14 +208,10 @@ export const productRepository = {
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
-        // ใส่ limit, offset ต่อท้าย values
         const queryValues = [...values, limit, offset];
-
-        // ยิง Query หาข้อมูลสินค้า
         const result = await pool.query(sql, queryValues);
 
-        // (Optional but Recommended) หาจำนวนทั้งหมดเพื่อทำ Pagination (Total Count)
-        // ต้อง query แยกอีกรอบโดยใช้เงื่อนไขเดิมแต่เอา Limit/Offset ออก เพื่อบอก Frontend ว่ามีกี่หน้า
+        // Count Query (ต้อง Join sizes เหมือนกันเป๊ะๆ ไม่งั้นจำนวนหน้าผิด)
         const countSql = `
       SELECT COUNT(*) as total FROM (
         SELECT pd.id 
@@ -223,12 +219,13 @@ export const productRepository = {
         LEFT JOIN categories AS c ON pd.category_id = c.id
         LEFT JOIN genders AS gd ON pd.gender_id = gd.id
         LEFT JOIN product_variants AS pv ON pv.product_id = pd.id
+        LEFT JOIN sizes AS sz ON pv.size_id = sz.id 
         WHERE ${whereString}
         GROUP BY pd.id, c.name, gd.name
         ${havingString}
       ) as subquery
     `;
-        // ใช้ values ชุดเดิม (ไม่ต้องมี limit/offset)
+
         const countResult = await pool.query(countSql, values);
         const total = parseInt(countResult.rows[0]?.total || "0");
 

@@ -4,6 +4,7 @@ export interface IProductFilter {
     search?: string;
     category?: string;
     gender?: string;
+    size?: string;
     sort?: string; // 'newest', 'price_asc', 'price_desc'
     minPrice?: number;
     maxPrice?: number;
