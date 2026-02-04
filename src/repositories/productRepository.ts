@@ -1,13 +1,13 @@
 import pool from "../config/db";
 import { PoolClient } from 'pg';
 import { IProductFilter } from "../type/productTypes";
+import { deleteFileFromCloudinary } from "../utils/cloudinary";
 export const productRepository = {
     createProduct: async (productData: any, variants: any[]) => {
         // ขอ Client มาส่วนตัวเพื่อทำ Transaction
         const client = await pool.connect();
-
         try {
-            // ริ่ม Transaction 
+            // เริ่ม Transaction 
             await client.query('BEGIN');
 
             // Insert ลงตารางแม่ (Products)
@@ -27,22 +27,42 @@ export const productRepository = {
             ]);
 
             const newProductId = productResult.rows[0].id;
-            console.log(` Created Product ID: ${newProductId}`);
+            console.log(`✅ Created Product ID: ${newProductId}`);
 
-            // BULK INSERT: ยิงทีเดียว จบทุก Variant
+            // BULK INSERT GALLERY (รูปเสริม)
+            // เช็คก่อนว่ามีส่งมาไหม (new_gallery คือ array ของ { image_url, file_path })
+            if (productData.new_gallery && productData.new_gallery.length > 0) {
+                const galleryValues: any[] = [];
+                const galleryPlaceholders: string[] = [];
+                let gParamIndex = 1;
+
+                productData.new_gallery.forEach((img: any, index: number) => {
+                    // ($1, $2, $3, $4)
+                    galleryPlaceholders.push(`($${gParamIndex}, $${gParamIndex + 1}, $${gParamIndex + 2}, $${gParamIndex + 3})`);
+
+                    //เรียงตามลำดับ: product_id, image_url, file_path, display_order
+                    galleryValues.push(newProductId, img.image_url, img.file_path, index + 1); // index+1 คือลำดับ
+                    gParamIndex += 4;
+                });
+
+                const insertGallerySql = `
+                    INSERT INTO product_images (product_id, image_url, file_path, display_order)
+                    VALUES ${galleryPlaceholders.join(', ')}
+                `;
+                await client.query(insertGallerySql, galleryValues);
+                console.log(`📸 Inserted ${productData.new_gallery.length} gallery images.`);
+            }
+
+            // BULK INSERT VARIANTS (ตัวเลือกสินค้า)
             if (variants.length > 0) {
-                // 1. สร้าง Placeholder เช่น ($1, $2, $3, $4, $5), ($6, $7, $8, $9, $10), ...
                 const values: any[] = [];
                 const placeholders: string[] = [];
                 let paramIndex = 1;
 
                 variants.forEach((v) => {
                     placeholders.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4})`);
-
-                    // เรียงตามลำดับ field ใน Query
                     values.push(newProductId, v.color_id, v.size_id, v.price, v.stock_quantity);
-
-                    paramIndex += 5; // ขยับไป 5 ช่อง (ตามจำนวน field)
+                    paramIndex += 5;
                 });
 
                 const bulkInsertSql = `
@@ -51,6 +71,7 @@ export const productRepository = {
                 `;
                 await client.query(bulkInsertSql, values);
             }
+
             // ถ้าทุกอย่างผ่าน -> บันทึก!
             await client.query('COMMIT');
 
@@ -61,7 +82,6 @@ export const productRepository = {
             console.error("Error creating product:", error);
             throw error;
         } finally {
-            // ปล่อย Client คืน Pool
             client.release();
         }
     },
@@ -231,6 +251,16 @@ export const productRepository = {
         c.name AS category,
         gd.name AS gender,
         (
+           SELECT JSON_AGG(
+             json_build_object(
+               'image_url', pi.image_url,
+               'display_order', pi.display_order
+             ) ORDER BY pi.display_order ASC -- เรียงตามลำดับที่ตั้งไว้
+           )
+           FROM product_images pi
+           WHERE pi.product_id = pd.id
+        ) AS gallery,
+        (
         SELECT JSON_AGG(
         json_build_object(
         'name', sub.name, 
@@ -320,7 +350,18 @@ export const productRepository = {
                 pd.category_id,   
                 pd.gender_id,
                 pd.is_active,    
-                
+                (
+                   SELECT JSON_AGG(
+                     json_build_object(
+                       'id', pi.id,
+                       'image_url', pi.image_url,
+                       'file_path', pi.file_path, 
+                       'display_order', pi.display_order
+                     ) ORDER BY pi.display_order ASC
+                   )
+                   FROM product_images pi
+                   WHERE pi.product_id = pd.id
+                ) AS gallery,
                 (
                     SELECT JSON_AGG(
                         JSON_BUILD_OBJECT(
@@ -369,7 +410,7 @@ export const productRepository = {
         try {
             await client.query('BEGIN');
 
-            // ---Update (Products)
+            // Update (Products - ข้อมูลหลัก)
             const updateProductSql = `
                 UPDATE products
                 SET product_name = $1, 
@@ -378,8 +419,8 @@ export const productRepository = {
                     category_id = $4, 
                     gender_id = $5,
                     file_path = $6,
-                    is_active = $7   -- 🔥 เพิ่ม is_active
-                WHERE id = $8        -- 🔥 ขยับ index เป็น 8
+                    is_active = $7
+                WHERE id = $8
             `;
             await client.query(updateProductSql, [
                 productData.product_name,
@@ -388,59 +429,100 @@ export const productRepository = {
                 productData.category_id,
                 productData.gender_id,
                 productData.file_path,
-                productData.is_active, // 🔥 รับค่าจากหน้าบ้าน
+                productData.is_active,
                 productId
             ]);
 
-            // ---จัดการ Variants 
+            // จัดการ GALLERY Images
+            // ลบรูปที่ถูกเลือกทิ้ง (Deleted IDs)
+            if (productData.deleted_gallery_ids && productData.deleted_gallery_ids.length > 0) {
 
-            // ---หา ID เก่าใน DB
+                // ดึง file_path มาก่อน (ต้องรู้ก่อนว่าจะลบไฟล์ชื่ออะไรบน Cloud)
+                const findImagesSql = `SELECT file_path FROM product_images WHERE id = ANY($1) AND product_id = $2`;
+                const imagesToDeleteRes = await client.query(findImagesSql, [productData.deleted_gallery_ids, productId]);
+                const imagesToDelete = imagesToDeleteRes.rows;
+
+                // วนลูบไฟล์บน Cloudinary (ยิง Parallel รัวๆ ด้วย Promise.all)
+                if (imagesToDelete.length > 0) {
+                    const deletePromises = imagesToDelete.map((img) => {
+                        if (img.file_path) {
+                            return deleteFileFromCloudinary(img.file_path, 'image');
+                        }
+                        return Promise.resolve(); // ถ้าไม่มี path ก็ข้าม
+                    });
+
+                    await Promise.all(deletePromises); // รอให้ลบเสร็จ (หรือถ้าพังมันก็แค่ log error ไม่ขัด transaction)
+                    console.log(`Cleaned up ${imagesToDelete.length} images from Cloudinary.`);
+                }
+
+                // ลบข้อมูลออกจาก DB 
+                await client.query(
+                    `DELETE FROM product_images WHERE id = ANY($1) AND product_id = $2`,
+                    [productData.deleted_gallery_ids, productId]
+                );
+                console.log(`🗑️ Deleted gallery records: ${productData.deleted_gallery_ids}`);
+            }
+
+            // เพิ่มรูปใหม่ (New Gallery)
+            if (productData.new_gallery && productData.new_gallery.length > 0) {
+                const galleryValues: any[] = [];
+                const galleryPlaceholders: string[] = [];
+                let gParamIndex = 1;
+
+                // หา display_order ล่าสุดก่อน (จะได้ต่อท้ายถูก)
+                const maxOrderRes = await client.query('SELECT MAX(display_order) as max_order FROM product_images WHERE product_id = $1', [productId]);
+                let currentOrder = (maxOrderRes.rows[0].max_order || 0);
+
+                productData.new_gallery.forEach((img: any) => {
+                    currentOrder += 1;
+                    galleryPlaceholders.push(`($${gParamIndex}, $${gParamIndex + 1}, $${gParamIndex + 2}, $${gParamIndex + 3})`);
+
+                    // product_id (จาก param), image_url, file_path, display_order
+                    galleryValues.push(productId, img.image_url, img.file_path, currentOrder);
+                    gParamIndex += 4;
+                });
+
+                const insertGallerySql = `
+                    INSERT INTO product_images (product_id, image_url, file_path, display_order)
+                    VALUES ${galleryPlaceholders.join(', ')}
+                 `;
+                await client.query(insertGallerySql, galleryValues);
+                console.log(`Added ${productData.new_gallery.length} new gallery images.`);
+            }
+
+
+            // จัดการ Variants 
             const existingRes = await client.query(
                 'SELECT id FROM product_variants WHERE product_id = $1',
                 [productId]
             );
             const existingIds = existingRes.rows.map(r => r.id);
-
-            // ---หา ID ที่ส่งมาจากหน้าบ้าน
             const incomingIds = variants
                 .filter((v: any) => v.variant_id)
                 .map((v: any) => v.variant_id);
 
-            // ---หา "ตัวที่ต้องลบ" (User กดถังขยะทิ้งไป)
             const toDeleteIds = existingIds.filter(id => !incomingIds.includes(id));
 
-            // ---SOFT DELETE ตัวที่โดนลบ: ปรับ Stock 0 + ปิด is_active
             if (toDeleteIds.length > 0) {
                 await client.query(
-                    `UPDATE product_variants 
-                     SET stock_quantity = 0, is_active = false 
-                     WHERE id = ANY($1)`,
+                    `UPDATE product_variants SET stock_quantity = 0, is_active = false WHERE id = ANY($1)`,
                     [toDeleteIds]
                 );
-                console.log(`Soft deleted variants: ${toDeleteIds.join(', ')}`);
             }
 
-            // ---วนลูป Upsert (Update / Insert)
             for (const v of variants) {
-                // เช็คว่ามีส่ง is_active มาไหม? ถ้าไม่มีให้ Default เป็น true
                 const variantIsActive = v.is_active !== undefined ? v.is_active : true;
 
                 if (v.variant_id) {
-                    // Case Update: ของเดิม -> แก้ข้อมูล + อัปเดตสถานะ
                     await client.query(`
                         UPDATE product_variants
-                        SET color_id = $1, 
-                            size_id = $2, 
-                            price = $3, 
-                            stock_quantity = $4,
-                            is_active = $5  -- 🔥 อัปเดตสถานะลูก
+                        SET color_id = $1, size_id = $2, price = $3, stock_quantity = $4, is_active = $5
                         WHERE id = $6
                     `, [v.color_id, v.size_id, v.price, v.stock_quantity, variantIsActive, v.variant_id]);
                 } else {
-                    // Case Insert: ของใหม่ -> เพิ่มข้อมูล + สถานะเริ่มต้น
                     await client.query(`
                         INSERT INTO product_variants (product_id, color_id, size_id, price, stock_quantity, is_active)
-                        VALUES ($1, $2, $3, $4, $5, $6) -- 🔥 เพิ่ม value ตัวที่ 6
+                        VALUES ($1, $2, $3, $4, $5, $6)
                     `, [productId, v.color_id, v.size_id, v.price, v.stock_quantity, variantIsActive]);
                 }
             }

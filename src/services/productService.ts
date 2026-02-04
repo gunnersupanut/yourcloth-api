@@ -4,17 +4,7 @@ import { deleteFileFromCloudinary } from "../utils/cloudinary";
 
 export const productService = {
     createProduct: async (data: any) => {
-        // data หน้าตาประมาณนี้:
-        // {
-        //    product_name: "เสื้อเท่",
-        //    description: "...",
-        //    image_url: "...",
-        //    category_id: 1,
-        //    gender_id: 1,
-        //    variants: [ { color_id: 1, size_id: 2, price: 500, stock_quantity: 10 }, ... ]
-        // }
-
-        // แยก header กับ variants ออกจากกัน
+        // แยก variants ออกมา ส่วนที่เหลือคือข้อมูลสินค้า + Gallery
         const { variants, ...productInfo } = data;
 
         if (!variants || variants.length === 0) {
@@ -22,6 +12,27 @@ export const productService = {
         }
 
         return await productRepository.createProduct(productInfo, variants);
+    },
+
+    update: async (id: number, data: any) => {
+        const { variants, ...productInfo } = data;
+
+        // 1ดึงข้อมูลเก่า (เพื่อเอา file_path ของรูปปกเดิม)
+        const oldProduct = await productRepository.getAdminById(id);
+        const oldFilePath = oldProduct?.file_path; // public_id ของรูปปกเก่า
+
+        // สั่ง Update ลง DB & Gallery 
+        // (Repo จะจัดการลบรูป Gallery เก่าทิ้งให้เอง ตาม Logic ที่เราเขียนไว้)
+        const result = await productRepository.updateProduct(id, productInfo, variants);
+
+        // จัดการรูปปก
+        // เช็ค: ถ้ามีการส่งรูปใหม่มา (file_path เปลี่ยน) และมีรูปเก่าอยู่ -> ลบรูปเก่าทิ้ง!
+        if (productInfo.file_path && oldFilePath && productInfo.file_path !== oldFilePath) {
+            console.log(`Main image changed! Deleting old image [${oldFilePath}]...`);
+            await deleteFileFromCloudinary(oldFilePath, 'image');
+        }
+
+        return result;
     },
     getStock: async (product_variant_id: number) => {
         const stock = await productRepository.getStockQuantity(product_variant_id);
@@ -61,27 +72,6 @@ export const productService = {
         }));
 
         return formattedProducts
-    },
-    update: async (id: number, data: any) => {
-        const { variants, ...productInfo } = data;
-
-        // ดึงข้อมูลเก่าออกมาก่อน (
-        const oldProduct = await productRepository.getAdminById(id);
-        const oldFilePath = oldProduct?.file_path; // public_id เก่า
-
-        // สั่ง Update ลง DB
-        const result = await productRepository.updateProduct(id, productInfo, variants);
-
-        // เช็ค: ถ้ามีการส่งรูปใหม่มา และ มันไม่ตรงกับรูปเก่า -> ลบรูปเก่าทิ้ง!
-        // (ต้องเช็คว่ามี oldFilePath ด้วยนะ เดี๋ยวไปลบความว่างเปล่า)
-        if (productInfo.file_path && oldFilePath && productInfo.file_path !== oldFilePath) {
-            console.log("Image changed! Deleting old image...");
-
-            // สั่งลบแล้วไม่ต้องรอ ไปทำอย่างอื่นต่อเลย
-            deleteFileFromCloudinary(oldFilePath);
-        }
-
-        return result;
     },
     delete: async (id: number) => {
         // เรียก Repo ให้จัดการปิดสวิตช์ (Soft Delete)

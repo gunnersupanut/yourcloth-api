@@ -4,9 +4,13 @@ import { AppError } from "../utils/AppError";
 
 export const createProductController = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        // รับข้อมูลจาก Body
         const result = await productService.createProduct(req.body);
-        res.status(201).json({ success: true, data: result });
+
+        res.status(201).json({
+            success: true,
+            message: "Product created successfully",
+            data: result
+        });
     } catch (error) {
         next(error);
     }
@@ -51,6 +55,30 @@ export const getAllProductController = async (req: Request, res: Response, next:
         next(error); // ส่ง Error ให้ Middleware จัดการ
     }
 }
+export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const id = Number(req.params.id);
+
+        // เช็คก่อนว่า ID เป็นตัวเลขจริงๆ ไหม (กัน Error ประหลาด)
+        if (isNaN(id)) {
+            res.status(400).json({ success: false, message: "Invalid Product ID" });
+            return; // ต้อง return เพื่อจบ function
+        }
+
+        // โยน req.body ไปให้ Service ทั้งก้อนเลย 
+        // (ในนั้นมี variants, deleted_gallery_ids, new_gallery ครบแล้ว จากที่ frontend ส่งมา)
+        const result = await productService.update(id, req.body);
+
+        res.status(200).json({
+            success: true,
+            message: "Product updated successfully",
+            data: result
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
 export const getAdminProductById = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const id = Number(req.params.id);
@@ -123,15 +151,6 @@ export const getAdminProductsContoller = async (req: Request, res: Response, nex
             count: products.length,
             data: products
         });
-    } catch (error) {
-        next(error);
-    }
-};
-export const updateProduct = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const id = Number(req.params.id);
-        const result = await productService.update(id, req.body);
-        res.json({ success: true, data: result });
     } catch (error) {
         next(error);
     }
