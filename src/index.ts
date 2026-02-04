@@ -49,6 +49,7 @@ app.use("/api/v1/carts", cartsRouter)
 // Address
 import addressRouter from './routes/address'
 app.use("/api/v1/addresses", addressRouter)
+
 // Order
 import orderRouter from './routes/order'
 import { errorHandler } from './middleware/errorHandler';
@@ -61,6 +62,11 @@ app.use("/api/v1/master", masterRouter)
 // Banner
 import bannerRouter from './routes/bannerRoutes'
 app.use("/api/v1/banners", bannerRouter)
+
+// Support
+import supportRouter from './routes/supportRoutes'
+app.use("/api/v1/supports", supportRouter)
+
 // **--Admin--**
 import adminAuthRouter from './routes/adminAuthRouter'
 app.use("/api/v1/admin/auth", adminAuthRouter)
