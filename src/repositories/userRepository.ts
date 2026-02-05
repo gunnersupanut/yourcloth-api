@@ -82,8 +82,8 @@ export const userRepository = {
     // },
     addNewUser: async (data: CreateUserParams) => {
         const sql = `
-            INSERT INTO users (username, password_hash, email, is_verify)
-            VALUES ($1, $2, $3, true)
+            INSERT INTO users (username, password_hash, email, verification_token, verification_expires_at, is_verify)
+            VALUES ($1, $2, $3,$4,$5, true)
         `;
 
         // เรียงตามลำดับ $1, $2...
@@ -91,6 +91,8 @@ export const userRepository = {
             data.username,
             data.password_hash,
             data.email,
+            data.verification_token,
+            data.verification_expires_at
         ];
         await pool.query(sql, values);
     },
