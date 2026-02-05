@@ -61,12 +61,12 @@ export const authService = {
             verification_expires_at: expiresAt
         }
         await userRepository.addNewUser(newUserParams);
-        // // ส่งเมล
-        // try {
-        //     await emailService.sendVerificationEmail(email, verificationToken);
-        // } catch (error) {
-        //     console.error("ส่งเมลไม่ผ่าน:", error)
-        // }
+        // ส่งเมล
+        try {
+            await emailService.sendVerificationEmail(email, verificationToken);
+        } catch (error) {
+            console.error("ส่งเมลไม่ผ่าน:", error)
+        }
     },
     forgotpassword: async (email: string) => {
         // หา user ก่อน

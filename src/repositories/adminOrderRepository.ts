@@ -139,7 +139,7 @@ export const adminOrderRepository = {
         let cteOrderBy = '';     // เรียงใน CTE (เพื่อเลือก 10 คนแรก)
         let finalOrderBy = '';   // เรียงตอนจบ (เพื่อให้ของเรียงสวย)
 
-        // เช็คว่า User อยากได้ มาก->น้อย (DESC) หรือ น้อย->มาก (ASC)
+        // เช็คว่า อยากได้ มาก->น้อย (DESC) หรือ น้อย->มาก (ASC)
         const isAsc = sortBy === 'oldest' || sortBy === 'price_asc';
         const direction = isAsc ? 'ASC' : 'DESC';
 

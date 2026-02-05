@@ -4,7 +4,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import http from "http";
 import { initSocket } from "./utils/socket";
-import { startCronJobs } from '../src/jobs/cronJobs';
+import { startCronJobs } from './jobs/cronJobs';
 // โหลดตัวแปรจาก .env
 dotenv.config();
 
