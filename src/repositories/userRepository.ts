@@ -64,10 +64,26 @@ export const userRepository = {
         await pool.query(sql, [newHash, userId]);
         return true; // ส่งกลับว่าสำเร็จ
     },
+    // addNewUser: async (data: CreateUserParams) => {
+    //     const sql = `
+    //         INSERT INTO users (username, password_hash, email, verification_token, verification_expires_at)
+    //         VALUES ($1, $2, $3, $4, $5)
+    //     `;
+
+    //     // เรียงตามลำดับ $1, $2...
+    //     const values = [
+    //         data.username,
+    //         data.password_hash,
+    //         data.email,
+    //         data.verification_token,
+    //         data.verification_expires_at
+    //     ];
+    //     await pool.query(sql, values);
+    // },
     addNewUser: async (data: CreateUserParams) => {
         const sql = `
-            INSERT INTO users (username, password_hash, email, verification_token, verification_expires_at)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO users (username, password_hash, email, is_verify)
+            VALUES ($1, $2, $3, true)
         `;
 
         // เรียงตามลำดับ $1, $2...
@@ -75,8 +91,6 @@ export const userRepository = {
             data.username,
             data.password_hash,
             data.email,
-            data.verification_token,
-            data.verification_expires_at
         ];
         await pool.query(sql, values);
     },

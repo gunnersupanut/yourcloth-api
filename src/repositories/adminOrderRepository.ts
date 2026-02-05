@@ -155,7 +155,6 @@ export const adminOrderRepository = {
             case 'price_desc': // แพงสุดขึ้นก่อน
                 // เรียงตามผลรวมราคาทั้งออเดอร์
                 cteOrderBy = `ORDER BY SUM(net_total) ${direction}`;
-                // 🔥 Trick: เอา grand_total จาก CTE มาเรียงรอบสุดท้าย
                 finalOrderBy = `ORDER BY t2.grand_total ${direction}`;
                 break;
 

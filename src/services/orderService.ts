@@ -66,7 +66,9 @@ export const orderService = {
             if (cancelLog) {
                 // เช็คจากชื่อ Actor ว่าเป็น ADMIN หรือ USER
                 // สมมติ Log "ADMIN Gunner" หรือ "USER CustomerName"
-                cancelledBy = cancelLog.actor_name.toUpperCase().includes('ADMIN') ? 'ADMIN' : 'USER';
+                const actor = cancelLog.actor_name.toUpperCase();
+                cancelledBy = actor.includes('ADMIN') ? 'ADMIN' :
+                    actor.includes('SYSTEM') ? 'SYSTEM' : 'USER';
             }
         }
         const orderData = {
