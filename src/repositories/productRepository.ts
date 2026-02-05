@@ -115,7 +115,6 @@ export const productRepository = {
         let paramIndex = 1;
 
         // --- Dynamic WHERE Clause ---
-
         if (search) {
             whereConditions.push(`(pd.product_name ILIKE $${paramIndex} OR pd.description ILIKE $${paramIndex})`);
             values.push(`%${search}%`);
@@ -135,7 +134,6 @@ export const productRepository = {
         }
 
         if (size && size !== "All") {
-            // ต้องเช็คว่า sz.name (ตาราง sizes) ตรงกับค่าที่ส่งมาไหม
             whereConditions.push(`sz.name = $${paramIndex}`);
             values.push(size);
             paramIndex++;
@@ -172,7 +170,10 @@ export const productRepository = {
       SELECT
         pd.id, 
         pd.product_name, 
-        MIN(pv.price) AS price, -- ราคาจะโชว์เฉพาะของ Variant ที่ผ่าน Filter (เช่น ราคาของไซส์ L)
+        MIN(pv.price) AS price, 
+        -- 🔥 เพิ่มบรรทัดนี้: รวมสต็อกของทุก Variant ที่ผ่าน Filter ออกมาเป็นตัวเลขเดียว
+        COALESCE(SUM(pv.stock_quantity), 0)::int AS total_stock, 
+        
         pd.description, 
         pd.image_url,
         c.name AS category,
@@ -211,7 +212,6 @@ export const productRepository = {
         const queryValues = [...values, limit, offset];
         const result = await pool.query(sql, queryValues);
 
-        // Count Query (ต้อง Join sizes เหมือนกันเป๊ะๆ ไม่งั้นจำนวนหน้าผิด)
         const countSql = `
       SELECT COUNT(*) as total FROM (
         SELECT pd.id 

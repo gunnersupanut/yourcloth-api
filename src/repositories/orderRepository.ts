@@ -345,4 +345,73 @@ export const orderRepository = {
         const result = await client.query(sql, [orderId]);
         return result.rows
     },
+    //  หา Order ID ที่ค้างจ่ายเกินเวลาที่กำหนด (เช่น 24 ชม.)
+    findExpiredPendingOrderIds: async (hours?: number) => {
+        const intervalHours = hours ?? 24;
+        const sql = `
+            SELECT DISTINCT order_id, user_id 
+            FROM order_pending 
+            WHERE ordered_at < NOW() - INTERVAL '${intervalHours} hours'
+        `;
+        const result = await pool.query(sql);
+        return result.rows; // คืนค่าเป็น Array [{ order_id: 1, user_id: 5 }, ...]
+    },
+
+    // ฟังก์ชันย้ายบ้าน (Move to Cancel) แบบ Transaction
+    autoCancelOrder: async (orderId: number, userId: number) => {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            // ---------------------------------------------------------
+            // สร้าง Problem Record (บันทึกเหตุผลการยกเลิก)
+            // ---------------------------------------------------------
+            // เพื่อให้หน้า Order Detail มีข้อมูลโชว์ว่า ทำไมถึงยกเลิก
+            const problemText = 'Auto cancel Payment not received within 24 hours.';
+            const problemSql = `
+                INSERT INTO order_problems (order_id, problem_text, created_at)
+                VALUES ($1, $2, NOW())
+            `;
+            await client.query(problemSql, [orderId, problemText]);
+
+
+            // ---------------------------------------------------------
+            // Move Data (Pending -> Cancel)
+            // ---------------------------------------------------------
+            const moveSql = `
+                INSERT INTO order_cancel 
+                SELECT * FROM order_pending 
+                WHERE order_id = $1 AND user_id = $2
+            `;
+            await client.query(moveSql, [orderId, userId]);
+
+            // ---------------------------------------------------------
+            // Create Log (System Bot)
+            // ---------------------------------------------------------
+            const logSql = `
+                INSERT INTO order_logs (order_id, action_type, actor_name, description, created_at)
+                VALUES ($1, 'ORDER_CANCEL', 'SYSTEM_BOT', 'Auto cancel: Unpaid > 24hr', NOW())
+            `;
+            await client.query(logSql, [orderId]);
+
+
+            // ---------------------------------------------------------
+            // Delete form Pending
+            // ---------------------------------------------------------
+            const deleteSql = `
+                DELETE FROM order_pending 
+                WHERE order_id = $1 AND user_id = $2
+            `;
+            await client.query(deleteSql, [orderId, userId]);
+
+            await client.query('COMMIT');
+            return true;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            console.error(`Error auto-canceling order ${orderId}:`, error);
+            return false;
+        } finally {
+            client.release();
+        }
+    }
 };

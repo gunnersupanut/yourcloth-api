@@ -4,6 +4,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import http from "http";
 import { initSocket } from "./utils/socket";
+import { startCronJobs } from '../src/jobs/cronJobs';
 // โหลดตัวแปรจาก .env
 dotenv.config();
 
@@ -78,6 +79,7 @@ app.use("/api/v1/admin/users", adminUserRouter)
 // Global Hanler Error
 app.use(errorHandler);
 // สั่งให้ Server มันเริ่มฟัง
+startCronJobs();
 server.listen(port, () => {
   console.log(`[Server] Server is running...`);
   console.log(`env: ${nodeEnv}`);
