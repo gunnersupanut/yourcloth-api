@@ -574,9 +574,9 @@ export const productRepository = {
         }
     },
     decreaseStock: async (items: any[], client: PoolClient) => {
+
         // ถ้าไม่มีของให้ตัด 
         if (items.length === 0) return;
-
         const values: any[] = [];
         const placeholders: string[] = [];
         let paramIndex = 1;
@@ -587,8 +587,7 @@ export const productRepository = {
             // สร้างคู่ ($1, $2) ::int เพื่อบอก DB ว่าเป็นตัวเลขแน่ๆ 
             placeholders.push(`($${paramIndex}::int, $${paramIndex + 1}::int)`);
 
-            values.push(item.variantId, item.quantity);
-
+            values.push(item.variant_id, item.quantity);
             paramIndex += 2;
         });
 

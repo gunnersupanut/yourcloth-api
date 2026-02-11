@@ -22,7 +22,7 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
     } catch (error) {
         return res.status(401).json({ error: 'Invalid or expired token' });
     }
-}
+};
 export const authAdminMiddleware = (req: Request, res: Response, next: NextFunction) => {
     try {
         // อ่าน Header
@@ -44,4 +44,4 @@ export const authAdminMiddleware = (req: Request, res: Response, next: NextFunct
     } catch (error) {
         return res.status(401).json({ error: 'Invalid or expired token' });
     }
-}
+};
