@@ -58,7 +58,7 @@ export const productRepository = {
                 const values: any[] = [];
                 const placeholders: string[] = [];
                 let paramIndex = 1;
-
+// 
                 variants.forEach((v) => {
                     placeholders.push(`($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4})`);
                     values.push(newProductId, v.color_id, v.size_id, v.price, v.stock_quantity);
